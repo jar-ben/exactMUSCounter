@@ -1,0 +1,232 @@
+c 
+c 
+c variables (total / active / free)	15/9/6
+c clauses (removed) 			6 (0)
+c decisions 				29
+c Max. decision level 			7
+c conflicts 				0
+c conflict clauses (all/bin/unit) 	1/0/0
+c 
+c failed literals found by implicit BCP 	 1
+c implicit BCP miss rate 	 95.8333%
+c bytes cache size     	20237192	
+c bytes cache (overall) 	20237192
+c bytes cache components (overall) 	2784
+c bytes cache (infra / comps) 20234408/2784	
+c bytes pure comp data (curr)    120
+c bytes pure comp data (overall) 120
+c bytes cache with sysoverh (curr)    4672
+c bytes cache with sysoverh (overall) 4672
+c cache (lookup / stores / hits) 			30/30/1
+c cache miss rate 96.6667%
+c avg. variable count (stores / hits) 	3.73333/2
+c 
+c 
+c # solutions 
+s pmc 44
+c # END
+c 
+c time: 0.002177s
+c 
+c 
+c variables (total / active / free)	24/24/0
+c clauses (removed) 			31 (0)
+c decisions 				136
+c Max. decision level 			12
+c conflicts 				2
+c conflict clauses (all/bin/unit) 	2/0/0
+c 
+c failed literals found by implicit BCP 	 2
+c implicit BCP miss rate 	 99.2032%
+c bytes cache size     	20246760	
+c bytes cache (overall) 	20246760
+c bytes cache components (overall) 	12352
+c bytes cache (infra / comps) 20234408/12352	
+c bytes pure comp data (curr)    1040
+c bytes pure comp data (overall) 1040
+c bytes cache with sysoverh (curr)    20416
+c bytes cache with sysoverh (overall) 20416
+c cache (lookup / stores / hits) 			136/137/0
+c cache miss rate 100%
+c avg. variable count (stores / hits) 	8.22628/0
+c 
+c 
+c # solutions 
+s pmc 41
+c # END
+c 
+c time: 0.002147s
+c 
+c 
+c variables (total / active / free)	15/9/6
+c clauses (removed) 			6 (0)
+c decisions 				29
+c Max. decision level 			7
+c conflicts 				0
+c conflict clauses (all/bin/unit) 	1/0/0
+c 
+c failed literals found by implicit BCP 	 1
+c implicit BCP miss rate 	 95.8333%
+c bytes cache size     	20237192	
+c bytes cache (overall) 	20237192
+c bytes cache components (overall) 	2784
+c bytes cache (infra / comps) 20234408/2784	
+c bytes pure comp data (curr)    120
+c bytes pure comp data (overall) 120
+c bytes cache with sysoverh (curr)    4672
+c bytes cache with sysoverh (overall) 4672
+c cache (lookup / stores / hits) 			30/30/1
+c cache miss rate 96.6667%
+c avg. variable count (stores / hits) 	3.73333/2
+c 
+c 
+c # solutions 
+s pmc 44
+c # END
+c 
+c time: 0.001994s
+c 
+c 
+c variables (total / active / free)	24/24/0
+c clauses (removed) 			31 (0)
+c decisions 				136
+c Max. decision level 			12
+c conflicts 				2
+c conflict clauses (all/bin/unit) 	2/0/0
+c 
+c failed literals found by implicit BCP 	 2
+c implicit BCP miss rate 	 99.2032%
+c bytes cache size     	20246760	
+c bytes cache (overall) 	20246760
+c bytes cache components (overall) 	12352
+c bytes cache (infra / comps) 20234408/12352	
+c bytes pure comp data (curr)    1040
+c bytes pure comp data (overall) 1040
+c bytes cache with sysoverh (curr)    20416
+c bytes cache with sysoverh (overall) 20416
+c cache (lookup / stores / hits) 			136/137/0
+c cache miss rate 100%
+c avg. variable count (stores / hits) 	8.22628/0
+c 
+c 
+c # solutions 
+s pmc 41
+c # END
+c 
+c time: 0.002512s
+c 
+c 
+c variables (total / active / free)	15/9/6
+c clauses (removed) 			6 (0)
+c decisions 				29
+c Max. decision level 			7
+c conflicts 				0
+c conflict clauses (all/bin/unit) 	1/0/0
+c 
+c failed literals found by implicit BCP 	 1
+c implicit BCP miss rate 	 95.8333%
+c bytes cache size     	20237192	
+c bytes cache (overall) 	20237192
+c bytes cache components (overall) 	2784
+c bytes cache (infra / comps) 20234408/2784	
+c bytes pure comp data (curr)    120
+c bytes pure comp data (overall) 120
+c bytes cache with sysoverh (curr)    4672
+c bytes cache with sysoverh (overall) 4672
+c cache (lookup / stores / hits) 			30/30/1
+c cache miss rate 96.6667%
+c avg. variable count (stores / hits) 	3.73333/2
+c 
+c 
+c # solutions 
+s pmc 44
+c # END
+c 
+c time: 0.003333s
+c 
+c 
+c variables (total / active / free)	24/24/0
+c clauses (removed) 			31 (0)
+c decisions 				136
+c Max. decision level 			12
+c conflicts 				2
+c conflict clauses (all/bin/unit) 	2/0/0
+c 
+c failed literals found by implicit BCP 	 2
+c implicit BCP miss rate 	 99.2032%
+c bytes cache size     	20246760	
+c bytes cache (overall) 	20246760
+c bytes cache components (overall) 	12352
+c bytes cache (infra / comps) 20234408/12352	
+c bytes pure comp data (curr)    1040
+c bytes pure comp data (overall) 1040
+c bytes cache with sysoverh (curr)    20416
+c bytes cache with sysoverh (overall) 20416
+c cache (lookup / stores / hits) 			136/137/0
+c cache miss rate 100%
+c avg. variable count (stores / hits) 	8.22628/0
+c 
+c 
+c # solutions 
+s pmc 41
+c # END
+c 
+c time: 0.002072s
+c 
+c 
+c variables (total / active / free)	15/9/6
+c clauses (removed) 			6 (0)
+c decisions 				29
+c Max. decision level 			7
+c conflicts 				0
+c conflict clauses (all/bin/unit) 	1/0/0
+c 
+c failed literals found by implicit BCP 	 1
+c implicit BCP miss rate 	 95.8333%
+c bytes cache size     	20237192	
+c bytes cache (overall) 	20237192
+c bytes cache components (overall) 	2784
+c bytes cache (infra / comps) 20234408/2784	
+c bytes pure comp data (curr)    120
+c bytes pure comp data (overall) 120
+c bytes cache with sysoverh (curr)    4672
+c bytes cache with sysoverh (overall) 4672
+c cache (lookup / stores / hits) 			30/30/1
+c cache miss rate 96.6667%
+c avg. variable count (stores / hits) 	3.73333/2
+c 
+c 
+c # solutions 
+s pmc 44
+c # END
+c 
+c time: 0.001265s
+c 
+c 
+c variables (total / active / free)	24/24/0
+c clauses (removed) 			31 (0)
+c decisions 				136
+c Max. decision level 			12
+c conflicts 				2
+c conflict clauses (all/bin/unit) 	2/0/0
+c 
+c failed literals found by implicit BCP 	 2
+c implicit BCP miss rate 	 99.2032%
+c bytes cache size     	20246760	
+c bytes cache (overall) 	20246760
+c bytes cache components (overall) 	12352
+c bytes cache (infra / comps) 20234408/12352	
+c bytes pure comp data (curr)    1040
+c bytes pure comp data (overall) 1040
+c bytes cache with sysoverh (curr)    20416
+c bytes cache with sysoverh (overall) 20416
+c cache (lookup / stores / hits) 			136/137/0
+c cache miss rate 100%
+c avg. variable count (stores / hits) 	8.22628/0
+c 
+c 
+c # solutions 
+s pmc 41
+c # END
+c 
+c time: 0.001201s
