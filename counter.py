@@ -108,7 +108,6 @@ class Counter:
         if self.autarky and filename[-4:] == ".cnf":
             self.autarkyTrim()
         self.dimension = len(self.C)
-        self.maxVar = 2*self.dimension + 2*maxVar(self.C + self.B)
         self.rid = randint(1,10000000)
         flatten = []
         for cl in (self.B + self.C):
@@ -136,6 +135,24 @@ class Counter:
         self.RemainderFile = "/var/tmp/remainder_{}.cnf".format(self.rid)
         self.RemainderIndFile = self.RemainderFile[:-4] + "_ind.cnf"
         self.tmpFiles = [self.WrapperFile, self.WrapperIndFile, self.RemainderFile, self.RemainderIndFile]
+
+        self.activators = [i + 1 for i in range(self.dimension)]
+        self.evidenceActivators = []
+        for i in range(1, self.dimension + 1):
+            self.evidenceActivators.append([i*self.dimension + j  for j in range(1, self.dimension + 1)])
+        self.FvarsOffset = (self.dimension + 1) * self.dimension
+        self.evidenceVarsOffsets = []
+        CBmaxVar = maxVar(self.C + self.B)
+        for i in range(1, self.dimension + 1):
+            self.evidenceVarsOffsets.append(self.FvarsOffset + i*CBmaxVar)
+        print("activators:", self.activators)
+        print()
+        print("evidence activators:", self.evidenceActivators)
+        print()
+        print("F's variables offset:", self.FvarsOffset)
+        print()
+        print("evidence variables' offsets:", self.evidenceVarsOffsets)
+
 
     def autarkyTrim(self):
         assert self.B == []
@@ -183,56 +200,50 @@ class Counter:
 
     def remainder(self):
         clauses, inds = self.wrapper()
-        act = max(self.maxVar, maxVar(clauses))
-        clauses += self.nonMSSBase(act)
+#        act = max(self.maxVar, maxVar(clauses))
+        clauses += self.allSAT()
         return clauses, inds
 
+    def W1(self):   
+        clauses = []
+        for i in range(self.dimension):
+            #the first conjunct, i.e., A - {f_i} = E_i - {f_i}
+            for j in range(self.dimension):
+                if j == i: continue
+                clauses.append([-self.activators[j], self.evidenceActivators[i][j]]) 
+                clauses.append([self.activators[j], -self.evidenceActivators[i][j]]) 
 
-    #VARIABLES INFO
-    #Activation literals A: 1 -- dimension
-    #Activation literals B: dimension + 1 -- 2*dimension
-    #F's variables: 2*dimension + 1 -- 2*dimension + Vars(F)
-    #F's primed variables: 2*dimension + Vars(F) + 1 -- 2*dimension + 2*Vars(F)
-    def W1(self):
+            #the second conjunct
+            clauses.append([-self.evidenceActivators[i][i]]) 
+
+            #the third conjunct
+            sat = []
+            actId = 0
+            for cl in self.C:
+                renumCl = offsetClause(cl, self.evidenceVarsOffsets[i])
+                renumCl.append(-self.evidenceActivators[i][actId])
+                sat.append(renumCl)
+                actId += 1
+            for cl in self.B:
+                sat.append(offsetClause(cl, self.evidenceVarsOffsets[i]))
+            for cl in sat:
+                clauses.append([-self.activators[i]] + cl) 
+
+        return clauses 
+
+    def allSAT(self):
         clauses = []
 
         i = 1
         for cl in self.C:
-            renumCl = offsetClause(cl, 2*self.dimension)
-            renumCl.append(i)
+            renumCl = offsetClause(cl, self.FvarsOffset)
+            renumCl.append(-i)
             clauses.append(renumCl)
             i += 1
         for cl in self.B:
-            clauses.append(offsetClause(cl, 2*self.dimension))
+            clauses.append(offsetClause(cl, self.FvarsOffset))
         return clauses
 
-    def nonMSSBase(self, act):
-        clauses = []
-        #the superset E is satisfiable
-        i = 1
-        maxCB = maxVar(self.C + self.B)
-        for cl in self.C:
-            renumCl = offsetClause(cl, 2*self.dimension + maxCB)
-            renumCl.append(i + self.dimension)
-            clauses.append(renumCl)
-            i += 1
-        for cl in self.B:
-            clauses.append(offsetClause(cl, 2*self.dimension + maxCB))
-        
-
-        #E supseteq S
-        for i in range(1, self.dimension + 1):
-            clauses.append([i, - (i + self.dimension)])
-
-        proper = []
-        mv = act
-        for i in range(1, self.dimension + 1):
-            act += 1
-            proper += [[act, i], [act, -(i + self.dimension)]] 
-        proper.append([-a for a in range(mv + 1, act + 1)])
-
-        clauses += proper
-        return clauses
 
     def W4(self):
         clauses = []
