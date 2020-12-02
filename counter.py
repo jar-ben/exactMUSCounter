@@ -109,6 +109,7 @@ class Counter:
             self.autarkyTrim()
         self.dimension = len(self.C)
         self.rid = randint(1,10000000)
+        self.debug = False
         flatten = []
         for cl in (self.B + self.C):
             flatten += cl
@@ -145,13 +146,15 @@ class Counter:
         CBmaxVar = maxVar(self.C + self.B)
         for i in range(1, self.dimension + 1):
             self.evidenceVarsOffsets.append(self.FvarsOffset + i*CBmaxVar)
-        print("activators:", self.activators)
-        print()
-        print("evidence activators:", self.evidenceActivators)
-        print()
-        print("F's variables offset:", self.FvarsOffset)
-        print()
-        print("evidence variables' offsets:", self.evidenceVarsOffsets)
+       
+        if self.debug: 
+            print("activators:", self.activators)
+            print()
+            print("evidence activators:", self.evidenceActivators)
+            print()
+            print("F's variables offset:", self.FvarsOffset)
+            print()
+            print("evidence variables' offsets:", self.evidenceVarsOffsets)
 
 
     def autarkyTrim(self):
@@ -190,7 +193,7 @@ class Counter:
     def wrapper(self):
         clauses = self.W1()
 #        if self.w4:
-#            clauses += self.W4()
+        clauses += self.W4()
 #        if self.w5:
 #            act = max(self.maxVar, maxVar(clauses))
 #            clauses += self.W5(act)
@@ -253,9 +256,9 @@ class Counter:
             renumCl = []
             for l in cl:
                 if l > 0:
-                    clauses.append([-i, -(l + 2*self.dimension)])
+                    clauses.append([i, -(l + self.FvarsOffset)])
                 else:
-                    clauses.append([-i, -(l - 2*self.dimension)])
+                    clauses.append([i, -(l - self.FvarsOffset)])
             i += 1
 
         return clauses
