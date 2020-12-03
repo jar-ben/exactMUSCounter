@@ -102,14 +102,15 @@ class Counter:
     def __init__(self, filename, useAutarky, useImu):
         self.filename = filename
         self.C, self.B = parse(filename)
-        self.imuSize = 0
         self.imu = useImu
         self.autarky = useAutarky
-        if self.autarky and filename[-4:] == ".cnf":
-            self.autarkyTrim()
-        self.dimension = len(self.C)
         self.rid = randint(1,10000000)
         self.debug = False
+
+        if self.imu or self.autarky:
+            self.imuAutarkyTrim()
+
+        self.dimension = len(self.C)
         flatten = []
         for cl in (self.B + self.C):
             flatten += cl
@@ -156,9 +157,25 @@ class Counter:
             print()
             print("evidence variables' offsets:", self.evidenceVarsOffsets)
 
+        #selection variables for individual wrappers. True means selected. Multiple wrappers can be selected and composed
+        self.w4 = False
+        self.w5 = False
 
-    def autarkyTrim(self):
-        assert self.B == []
+    def imuAutarkyTrim(self):
+        if self.filename[-5:] == ".gcnf":
+            print("-- WARNING: The computation of the intersection of MUSes and the autarky is currently not supported for .gcnf instances.")
+            print("-- I am keeping the original input (no trim based on the intersection nor autarky).")
+            return
+        autarky = self.getAutarky() if self.autarky else [i for i in range(len(self.C))]
+        imu = self.getImu() if self.imu else []
+
+        C = [self.C[c] for c in sorted(set(autarky) - set(imu))]
+        B = [self.C[c] for c in imu]
+        print("autarky size: {} of {} clauses".format(len(autarky), len(self.C)))
+        print("imu size:", len(imu))
+        self.C, self.B = C, B
+
+    def getAutarky(self):
         cmd = "timeout 3600 python3 autarky.py {}".format(self.filename)
         print(cmd)
         out = run(cmd, 3600)
@@ -166,24 +183,14 @@ class Counter:
             for line in out.splitlines():
                 line = line.rstrip()
                 if line[:2] == "v ":
-                    autarky = [int(c) - 1 for c in line.split()[1:]]
-        else: return
-
-        imu = self.getImu() if self.imu else []
-        self.imuSize = len(imu)
-
-        coAutarky = [i for i in range(len(self.C)) if i not in autarky]
-        C = [self.C[c] for c in sorted(set(autarky) - set(imu))]
-        B = [self.C[c] for c in coAutarky + imu]
-        print("autarky size: {} of {} clauses".format(len(autarky), len(self.C)))
-        print("imu size:", len(imu))
-        self.C, self.B = C, B
+                    return [int(c) - 1 for c in line.split()[1:]]
+        else: return [i for i in range(len(self.C))]
 
     def getImu(self):
         cmd = "timeout 3600 python3 gimu.py {}".format(self.filename)
         print(cmd)
         out = run(cmd, 3600)
-        if "imu size" in out:
+        if "imu size" in out and not "imu size: 0" in out:
             for line in out.splitlines():
                 line = line.rstrip()
                 if line[:2] == "v ":
@@ -192,11 +199,11 @@ class Counter:
 
     def wrapper(self):
         clauses = self.W1()
-#        if self.w4:
-        clauses += self.W4()
-#        if self.w5:
-#            act = max(self.maxVar, maxVar(clauses))
-#            clauses += self.W5(act)
+        if self.w4:
+            clauses += self.W4()
+        if self.w5:
+            act = maxVar(clauses)
+            clauses += self.W5(act)
 
         inds = [i for i in range(1, self.dimension + 1)]
         return clauses, inds
@@ -247,32 +254,34 @@ class Counter:
             clauses.append(offsetClause(cl, self.FvarsOffset))
         return clauses
 
-
+    #for each 1<=i<=n we encode that the valuation I_i 
+    #does not satisfy the clase f_i
     def W4(self):
         clauses = []
         #max model
-        i = 1
-        for cl in self.C:
+        for i in range(len(self.C)):
             renumCl = []
-            for l in cl:
+            for l in self.C[i]:
                 if l > 0:
-                    clauses.append([i, -(l + self.FvarsOffset)])
+                    clauses.append([-(l + self.evidenceVarsOffsets[i])])
                 else:
-                    clauses.append([i, -(l - self.FvarsOffset)])
-            i += 1
-
+                    clauses.append([-(l - self.evidenceVarsOffsets[i])])
         return clauses
 
+    #for each 1<=i<=n we encode that the model I_i of E_i
+    #is enforced to falsify the clase f_i, 
+    #i.e., if we flip an assignemnt to any literal of f_i in I_i, then I_i no longer models E_i
     def W5(self, act):
         clauses = []
         for i in range(len(self.C)):
             for l in self.C[i]:
                 cl = [-i]
                 acts = []
-                for d in self.hitmapC[-l]:
+                for d in self.hitmapC[-l]:                    
+                    dAct = self.evidenceActivators[i][d - 1]
                     act += 1
                     acts.append(act)
-                    cube = [-d] + [-offset(k, 2*self.dimension) for k in self.C[d - 1] if k != -l] #C[d] is activated and l is the only literal of C[d] satisfied by the model
+                    cube = [dAct] + [-offset(k, self.evidenceVarsOffsets[i]) for k in self.C[d - 1] if k != -l] #C[d] is activated and l is the only literal of C[d] satisfied by the model
                     #eq encodes that act is equivalent to the cube
                     eq = [[act] + [-x for x in cube]] # one way implication
                     for c in cube: #the other way implication
@@ -281,13 +290,13 @@ class Counter:
                 for d in self.hitmapB[-l]:
                     act += 1
                     acts.append(act)
-                    cube = [-offset(k, 2*self.dimension) for k in self.B[d] if k != -l] #B[d] is activated and l is the only literal of B[d] satisfied by the model
+                    cube = [-offset(k, self.evidenceVarsOffsets[i]) for k in self.B[d] if k != -l] #B[d] is activated and l is the only literal of B[d] satisfied by the model
                     #eq encodes that act is equivalent to the cube
                     eq = [[act] + [-x for x in cube]] # one way implication
                     for c in cube: #the other way implication
                         eq += [[-act, c]]
                     clauses += eq
-                cl = [-(i + 1)] + acts #either C[i] is activated or the literal -l is enforced by one of the activated clauses
+                cl = [-self.activators[i]] + acts #either C[i] is activated or the literal -l is enforced by one of the activated clauses
                 clauses.append(cl)
             #break  
         return clauses
@@ -359,6 +368,8 @@ if __name__ == "__main__":
     parser.add_argument("input_file", help = "A path to the input file. Either a .cnf or a .gcnf instance. See ./examples/")
     parser.add_argument("--imu", action='store_true', help = "Use IMU.")
     parser.add_argument("--autarky", action='store_true', help = "Use autarky to trim the input formula.")
+    parser.add_argument("--w4", action='store_true', help = "Compose with the wrapper W4.")
+    parser.add_argument("--w5", action='store_true', help = "Compose with the wrapper W5.")
     args = parser.parse_args()
 
     counter = Counter(args.input_file, args.autarky, args.imu)
@@ -366,4 +377,6 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, partial(receiveSignal, counter.tmpFiles))
     signal.signal(signal.SIGTERM, partial(receiveSignal, counter.tmpFiles))
 
+    counter.w4 = args.w4
+    counter.w5 = args.w5
     counter.runExact()
