@@ -132,9 +132,9 @@ class Counter:
                 self.hitmapB[l].append(i) #note that here we store 0-based index as opposed to hitmapC
 
 
-        self.WrapperFile = "/var/tmp/wrapper_{}.cnf".format(self.rid)
+        self.WrapperFile = "./tmp/wrapper_{}.cnf".format(self.rid)
         self.WrapperIndFile = self.WrapperFile[:-4] + "_ind.cnf"
-        self.RemainderFile = "/var/tmp/remainder_{}.cnf".format(self.rid)
+        self.RemainderFile = "./tmp/remainder_{}.cnf".format(self.rid)
         self.RemainderIndFile = self.RemainderFile[:-4] + "_ind.cnf"
         self.tmpFiles = [self.WrapperFile, self.WrapperIndFile, self.RemainderFile, self.RemainderIndFile]
 
@@ -317,6 +317,7 @@ class Counter:
 
     def runExact(self):
         self.ganak = True
+        #self.ganak = False
         WrapperClauses, WrapperInd = self.wrapper()
         if len(WrapperClauses) > 1200000:
             print("Too large wrapper,", str(len(WrapperClauses)), "terminating")
@@ -333,12 +334,12 @@ class Counter:
 
         timeout = 3600
         if self.ganak:
-            cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak {}".format(timeout, self.WrapperFile)
+            cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak -noIBCP {}".format(timeout, self.WrapperFile)
             print(cmd)
             wrapperSize = self.parseGanak(run(cmd, timeout))
             print("Wrapper size:", wrapperSize)
 
-            cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak {}".format(timeout, self.RemainderFile)
+            cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak -noIBCP {}".format(timeout, self.RemainderFile)
             print(cmd)
             remainderSize = self.parseGanak(run(cmd, timeout))
             print("Remainder size:", remainderSize)
@@ -350,7 +351,7 @@ class Counter:
 
             cmd = "timeout {} ./projMC_linux {} -fpv=\"{}\"".format(timeout, self.RemainderFile, self.RemainderIndFile)
             print(cmd)
-            wrapperSize = self.parseProjMC(run(cmd, timeout))
+            remainderSize = self.parseProjMC(run(cmd, timeout))
             print("Remainder size:", remainderSize)
          
         count = -1
