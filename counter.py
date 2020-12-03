@@ -60,7 +60,7 @@ def exportCNF(clauses, filename, ind, varFile):
         for cl in clauses:
             f.write(" ".join([str(l) for l in cl]) + " 0\n")
 
-    print(varFile)
+    print(varFile, "clauses:", len(clauses), "maxVar:", maxVar)
     with open(varFile, "w") as f:
         f.write(",".join ([str(v) for v in ind]))
 
@@ -171,8 +171,8 @@ class Counter:
 
         C = [self.C[c] for c in sorted(set(autarky) - set(imu))]
         B = [self.C[c] for c in imu]
-        print("autarky size: {} of {} clauses".format(len(autarky), len(self.C)))
-        print("imu size:", len(imu))
+        if self.autarky: print("autarky size: {} of {} clauses".format(len(autarky), len(self.C)))
+        if self.imu: print("imu size:", len(imu))
         self.C, self.B = C, B
 
     def getAutarky(self):
