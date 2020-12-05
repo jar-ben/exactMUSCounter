@@ -50,7 +50,7 @@ def maxVar(C):
 def randomBool():
     return bool(random.getrandbits(1))
 
-def exportCNF(clauses, filename, ind, varFile):
+def exportCNF(clauses, filename, ind = [], varFile = None):
     print("running export for ", filename)
     with open(filename, "w") as f:
         if len(ind) > 0:
@@ -61,8 +61,9 @@ def exportCNF(clauses, filename, ind, varFile):
             f.write(" ".join([str(l) for l in cl]) + " 0\n")
 
     print(varFile, "clauses:", len(clauses), "maxVar:", maxVar)
-    with open(varFile, "w") as f:
-        f.write(",".join ([str(v) for v in ind]))
+    if (varFile is not None) and (len(ind) > 0):
+        with open(varFile, "w") as f:
+            f.write(",".join ([str(v) for v in ind]))
 
 #parse .gcnf instance,
 #returns a pair C,B where B contains the base (hard) clauses and C the other clauses
@@ -99,7 +100,7 @@ def offsetClause(cl, off):
     return [offset(l, off) for l in cl]    
 
 class Counter:
-    def __init__(self, filename, useAutarky, useImu):
+    def __init__(self, filename, useAutarky, useImu, rime, rimeTimeout):
         self.filename = filename
         self.C, self.B = parse(filename)
         self.imu = useImu
@@ -136,6 +137,7 @@ class Counter:
         self.WrapperIndFile = self.WrapperFile[:-4] + "_ind.cnf"
         self.RemainderFile = "./tmp/remainder_{}.cnf".format(self.rid)
         self.RemainderIndFile = self.RemainderFile[:-4] + "_ind.cnf"
+        self.rimeFile = "./tmp/rime_{}.cnf".format(self.rid)
         self.tmpFiles = [self.WrapperFile, self.WrapperIndFile, self.RemainderFile, self.RemainderIndFile]
 
         self.activators = [i + 1 for i in range(self.dimension)]
@@ -160,6 +162,27 @@ class Counter:
         #selection variables for individual wrappers. True means selected. Multiple wrappers can be selected and composed
         self.w4 = False
         self.w5 = False
+
+        self.rime = rime
+        self.rimeTimeout = rimeTimeout
+        self.mcses = []
+        if self.rime:
+            self.rimeMCSes()
+
+    def rimeMCSes(self):
+        if self.filename[-5:] == ".gcnf":
+            print("-- WARNING: The computation of MCSes via RIME is currently not supported for .gcnf instances.")
+            return
+        exportCNF(self.C + self.B, self.rimeFile)        
+        cmd = "timeout {} ./rime -v 1 {}".format(self.rimeTimeout, self.rimeFile)
+        print(cmd)
+        out = run(cmd, self.rimeTimeout)
+        for line in out.splitlines():
+            if line[:4] == "MCS ":
+                line = line.rstrip().split(" ")[1:]
+                mcs = [int(c) for c in line if int(c) < len(self.C)]
+                self.mcses.append(mcs)
+        print("identified MCSes: ", len(self.mcses))
 
     def imuAutarkyTrim(self):
         if self.filename[-5:] == ".gcnf":
@@ -239,6 +262,9 @@ class Counter:
             for cl in sat:
                 clauses.append([-self.activators[i]] + cl) 
 
+        if self.rime and len(self.mcses) > 0:
+            for mcs in self.mcses:
+                clauses.append([self.activators[c] for c in mcs])
         return clauses 
 
     def allSAT(self):
@@ -371,9 +397,12 @@ if __name__ == "__main__":
     parser.add_argument("--autarky", action='store_false', help = "Disable the computation of the autarky (overapproximation of the union of MUSes).")
     parser.add_argument("--w4", action='store_true', help = "Compose with the wrapper W4.")
     parser.add_argument("--w5", action='store_true', help = "Compose with the wrapper W5.")
+    parser.add_argument("--rime", action='store_true', help = "Use RIME to enumerate some MCSes and use them to trim the searchspace.")
+    parser.add_argument("--rime_timeout", type=int, default=10, help = "Set timeout for RIME.")
     args = parser.parse_args()
 
-    counter = Counter(args.input_file, args.autarky, args.imu)
+
+    counter = Counter(args.input_file, args.autarky, args.imu, args.rime, args.rime_timeout)
     signal.signal(signal.SIGHUP, partial(receiveSignal, counter.tmpFiles))
     signal.signal(signal.SIGINT, partial(receiveSignal, counter.tmpFiles))
     signal.signal(signal.SIGTERM, partial(receiveSignal, counter.tmpFiles))
