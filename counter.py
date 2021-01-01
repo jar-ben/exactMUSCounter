@@ -9,7 +9,7 @@ import argparse
 import os
 from functools import partial
 import signal
-
+from pysat.card import *
 
 
 def receiveSignal(tempFiles, signalNumber, frame):
@@ -133,12 +133,16 @@ class Counter:
                 self.hitmapB[l].append(i) #note that here we store 0-based index as opposed to hitmapC
 
 
-        self.WrapperFile = "./tmp/wrapper_{}.cnf".format(self.rid)
+        self.rime = rime
+        self.rimeTimeout = rimeTimeout
+        self.mcses = []
+
+        self.WrapperFile = "./tmp/wrapper_{}_{}.cnf".format(self.rid,self.rimeTimeout)
         self.WrapperIndFile = self.WrapperFile[:-4] + "_ind.cnf"
-        self.RemainderFile = "./tmp/remainder_{}.cnf".format(self.rid)
+        self.RemainderFile = "./tmp/remainder_{}_{}.cnf".format(self.rid, self.rimeTimeout)
         self.RemainderIndFile = self.RemainderFile[:-4] + "_ind.cnf"
         self.rimeFile = "./tmp/rime_{}.cnf".format(self.rid)
-        self.tmpFiles = [self.WrapperFile, self.WrapperIndFile, self.RemainderFile, self.RemainderIndFile]
+        self.tmpFiles = [self.WrapperFile, self.WrapperIndFile, self.RemainderFile, self.RemainderIndFile, self.rimeFile]
 
         self.activators = [i + 1 for i in range(self.dimension)]
         self.evidenceActivators = []
@@ -162,10 +166,8 @@ class Counter:
         #selection variables for individual wrappers. True means selected. Multiple wrappers can be selected and composed
         self.w4 = False
         self.w5 = False
+        self.w6 = False
 
-        self.rime = rime
-        self.rimeTimeout = rimeTimeout
-        self.mcses = []
         if self.rime:
             self.rimeMCSes()
 
@@ -183,6 +185,9 @@ class Counter:
                 mcs = [int(c) for c in line if int(c) < len(self.C)]
                 self.mcses.append(mcs)
         print("identified MCSes: ", len(self.mcses))
+        if os.path.exists(self.rimeFile):
+            os.remove(self.rimeFile)
+             
 
     def imuAutarkyTrim(self):
         if self.filename[-5:] == ".gcnf":
@@ -224,9 +229,18 @@ class Counter:
         clauses = self.W1()
         if self.w4:
             clauses += self.W4()
+        if self.w6:
+            clauses += self.W6()
         if self.w5:
             act = maxVar(clauses)
             clauses += self.W5(act)
+
+        if self.min_size > 0:
+            act = maxVar(clauses)
+            clauses += CardEnc.atleast(lits=self.activators, bound=self.min_size, encoding=8, top_id=act)
+        if self.max_size > 0:
+            act = maxVar(clauses)
+            clauses += CardEnc.atmost(lits=self.activators, bound=self.max_size, encoding=8, top_id=act)
 
         inds = [i for i in range(1, self.dimension + 1)]
         return clauses, inds
@@ -234,7 +248,9 @@ class Counter:
     def remainder(self):
         clauses, inds = self.wrapper()
 #        act = max(self.maxVar, maxVar(clauses))
+        print("pre len", len(clauses))
         clauses += self.allSAT()
+        print("post len", len(clauses))
         return clauses, inds
 
     def W1(self):   
@@ -327,6 +343,14 @@ class Counter:
             #break  
         return clauses
 
+    def W6(self):
+        clauses = []
+        for i in range(len(self.C)):
+            for l in self.C[i]:
+                if len(self.hitmapB[-l]) == 0:
+                    clauses.append([-(i + 1)] + self.hitmapC[-l])
+        print ("w6 clauses:", len(clauses))
+        return clauses
 
     def parseGanak(self, out):
         if "# END" not in out: return -1
@@ -361,11 +385,13 @@ class Counter:
         timeout = 3600
         if self.ganak:
             cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak -noIBCP {}".format(timeout, self.WrapperFile)
+            cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak {}".format(timeout, self.WrapperFile)
             print(cmd)
             wrapperSize = self.parseGanak(run(cmd, timeout))
             print("Wrapper size:", wrapperSize)
 
             cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak -noIBCP {}".format(timeout, self.RemainderFile)
+            cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak {}".format(timeout, self.RemainderFile)
             print(cmd)
             remainderSize = self.parseGanak(run(cmd, timeout))
             print("Remainder size:", remainderSize)
@@ -383,9 +409,9 @@ class Counter:
         count = -1
         if (wrapperSize >= 0) and (remainderSize >= 0): count = wrapperSize - remainderSize
         print("MUS count:", count)
-        os.remove(self.RemainderFile)
+        #os.remove(self.RemainderFile)
         os.remove(self.RemainderIndFile)
-        os.remove(self.WrapperFile)
+        #os.remove(self.WrapperFile)
         os.remove(self.WrapperIndFile)
 
 import sys
@@ -397,8 +423,11 @@ if __name__ == "__main__":
     parser.add_argument("--autarky", action='store_false', help = "Disable the computation of the autarky (overapproximation of the union of MUSes).")
     parser.add_argument("--w4", action='store_true', help = "Compose with the wrapper W4.")
     parser.add_argument("--w5", action='store_true', help = "Compose with the wrapper W5.")
+    parser.add_argument("--w6", action='store_true', help = "Compose with the wrapper W6.")
     parser.add_argument("--rime", action='store_true', help = "Use RIME to enumerate some MCSes and use them to trim the searchspace.")
-    parser.add_argument("--rime_timeout", type=int, default=10, help = "Set timeout for RIME.")
+    parser.add_argument("--rime-timeout", type=int, default=10, help = "Set timeout for RIME.")
+    parser.add_argument("--min-size", type=int, default=-1, help = "Specify the minimum size (cardinality) of the counted MUSes.")
+    parser.add_argument("--max-size", type=int, default=-1, help = "Specify the maximum size (cardinality) of the counted MUSes.")
     args = parser.parse_args()
 
 
@@ -409,4 +438,7 @@ if __name__ == "__main__":
 
     counter.w4 = args.w4
     counter.w5 = args.w5
+    counter.w6 = args.w6
+    counter.max_size = args.max_size
+    counter.min_size = args.min_size
     counter.runExact()
