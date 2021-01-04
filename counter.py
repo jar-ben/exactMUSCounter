@@ -12,6 +12,14 @@ import signal
 from pysat.card import *
 
 
+def tseitinCube(cube, current):
+    current += 1
+    res = []
+    for l in cube:
+        res.append([-current,l])
+    res.append([current] + [-l for l in cube])
+    return res, current
+
 def receiveSignal(tempFiles, signalNumber, frame):
     print(tempFiles, signalNumber, frame)
     print('Received signal:', signalNumber)
@@ -167,9 +175,51 @@ class Counter:
         self.w4 = False
         self.w5 = False
         self.w6 = False
+        self.w7 = False
 
         if self.rime:
             self.rimeMCSes()
+
+        self.sccs()
+
+    def sccDFS(self, visitedC, visitedB, Ci, Bi, component):
+        assert min(Ci, Bi) < 0 and max(Ci, Bi) >= 0
+        if Ci >= 0 and not visitedC[Ci]:
+            visitedC[Ci] = True
+            self.sccC[Ci] = component
+            for l in self.C[Ci]:
+                for d in self.hitmapC[-l]: #clauses that contain the negated literal (offset +1!)
+                    self.sccDFS(visitedC, visitedB, d - 1, -1, component)
+                for d in self.hitmapB[-l]: #clauses that contain the negated literal (offset +1!)
+                    self.sccDFS(visitedC, visitedB, -1, d - 1, component)
+        if Bi >= 0 and not visitedB[Bi]:
+            visitedB[Bi] = True
+            self.sccB[Bi] = component
+            for l in self.B[Bi]:
+                for d in self.hitmapC[-l]: #clauses that contain the negated literal (offset +1!)
+                    self.sccDFS(visitedC, visitedB, d - 1, -1, component)
+                for d in self.hitmapB[-l]: #clauses that contain the negated literal (no offset here!)
+                    self.sccDFS(visitedC, visitedB, -1, d, component)
+
+    def sccs(self):
+        visitedC = [False for _ in range(len(self.C))]
+        visitedB = [False for _ in range(len(self.B))]
+        self.sccC = [-1 for _ in range(len(self.C))]
+        self.sccB = [-1 for _ in range(len(self.B))]
+        
+        component = 0
+        for i in range(len(self.C)):
+            if visitedC[i]: continue
+            component += 1
+            self.sccDFS(visitedC, visitedB, i, -1, component)
+        for i in range(len(self.B)):
+            if visitedB[i]: continue
+            component += 1
+            self.sccDFS(visitedC, visitedB, -1, i, component)
+        print("SCCS: ", component)
+       
+        self.components = component 
+
 
     def rimeMCSes(self):
         if self.filename[-5:] == ".gcnf":
@@ -234,6 +284,9 @@ class Counter:
         if self.w5:
             act = maxVar(clauses)
             clauses += self.W5(act)
+        if self.w7:
+            act = maxVar(clauses)
+            clauses += self.W7(act)
 
         if self.min_size > 0:
             act = maxVar(clauses)
@@ -352,6 +405,22 @@ class Counter:
         print ("w6 clauses:", len(clauses))
         return clauses
 
+    #SCC based decomposition
+    def W7(self, current):
+        clauses = []
+        acts = []
+        for component in range(1, self.components + 1):
+            cube = []
+            for i in range(len(self.C)):
+                if self.sccC[i] != component:
+                    cube.append(-(i + 1)) #offset indexing
+            cls, current = tseitinCube(cube, current)
+            clauses += cls
+            acts.append(current)
+        clauses.append([a for a in acts])
+        print("w7 clauses:", len(clauses))
+        return clauses
+
     def parseGanak(self, out):
         if "# END" not in out: return -1
         reading = False
@@ -424,6 +493,7 @@ if __name__ == "__main__":
     parser.add_argument("--w4", action='store_true', help = "Compose with the wrapper W4.")
     parser.add_argument("--w5", action='store_true', help = "Compose with the wrapper W5.")
     parser.add_argument("--w6", action='store_true', help = "Compose with the wrapper W6.")
+    parser.add_argument("--w7", action='store_true', help = "Compose with the wrapper W7 (SCC based decomposition).")
     parser.add_argument("--rime", action='store_true', help = "Use RIME to enumerate some MCSes and use them to trim the searchspace.")
     parser.add_argument("--rime-timeout", type=int, default=10, help = "Set timeout for RIME.")
     parser.add_argument("--min-size", type=int, default=-1, help = "Specify the minimum size (cardinality) of the counted MUSes.")
@@ -439,6 +509,7 @@ if __name__ == "__main__":
     counter.w4 = args.w4
     counter.w5 = args.w5
     counter.w6 = args.w6
+    counter.w7 = args.w7
     counter.max_size = args.max_size
     counter.min_size = args.min_size
     counter.runExact()
