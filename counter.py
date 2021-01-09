@@ -180,6 +180,7 @@ class Counter:
         self.w6 = False
         self.w7 = False
         self.w8 = False
+        self.w9 = False
 
         if self.rime:
             self.rimeMCSes()
@@ -290,7 +291,8 @@ class Counter:
             clauses += self.W7(act)
         if self.w8 and "benchsMUS" in self.filename: #read from the name of the generated benchmarks. In future, use an algorihm to compute the minimum cardinality
             self.min_size = floor(float(self.filename.split("_")[-2])/2)
-
+        if self.w9:
+            clauses += self.W9()
 
         if self.min_size > 0:
             act = maxVar(clauses)
@@ -309,6 +311,19 @@ class Counter:
 #        act = max(self.maxVar, maxVar(clauses))
         clauses += self.allSAT()
         return clauses, inds
+
+    def W9(self):
+        clauses = []
+        singletons = 0
+        for i in range(self.dimension):
+            if len(self.C[i]) == 1: #singleton clause
+                singletons += 1
+                l = self.C[i][0]
+                for j in self.hitmapC[l]:
+                    if i + 1 != j: #distinct clause
+                        clauses.append([-(i + 1), -j]) #a_(i+1) -> \neg a_j
+        print("singletons: {}, clauses: {}".format(singletons, len(clauses)))
+        return clauses
 
     def W1(self):   
         clauses = []
@@ -476,6 +491,7 @@ if __name__ == "__main__":
     parser.add_argument("--w6", action='store_true', help = "Compose with the wrapper W6.")
     parser.add_argument("--w7", action='store_true', help = "Compose with the wrapper W7 (connected components based decomposition).")
     parser.add_argument("--w8", action='store_true', help = "Compose with the wrapper W8 (compute (an underapproximation of) a minimum MUS cardinality.")
+    parser.add_argument("--w9", action='store_true', help = "Compose with the wrapper W9 (prevent simple implicant between activated clauses).")
     parser.add_argument("--rime", action='store_true', help = "Use RIME to enumerate some MCSes and use them to trim the searchspace.")
     parser.add_argument("--rime-timeout", type=int, default=10, help = "Set timeout for RIME.")
     parser.add_argument("--min-size", type=int, default=-1, help = "Specify the minimum size (cardinality) of the counted MUSes.")
@@ -499,6 +515,7 @@ if __name__ == "__main__":
     counter.w6 = args.w6
     counter.w7 = args.w7
     counter.w8 = args.w8 #min size
+    counter.w9 = args.w9
     counter.max_size = args.max_size
     counter.min_size = args.min_size
     counter.keep_files = args.keep_files
