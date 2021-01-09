@@ -308,36 +308,17 @@ class Counter:
     def remainder(self):
         clauses, inds = self.wrapper()
 #        act = max(self.maxVar, maxVar(clauses))
-        print("pre len", len(clauses))
         clauses += self.allSAT()
-        print("post len", len(clauses))
         return clauses, inds
 
     def W1(self):   
         clauses = []
         for i in range(self.dimension):
-            #the first conjunct, i.e., A - {f_i} = E_i - {f_i}
             for j in range(self.dimension):
                 if j == i: continue
-                clauses.append([-self.activators[j], self.evidenceActivators[i][j]]) 
-                clauses.append([self.activators[j], -self.evidenceActivators[i][j]]) 
-
-            #the second conjunct
-            clauses.append([-self.evidenceActivators[i][i]]) 
-
-            #the third conjunct
-            sat = []
-            actId = 0
-            for cl in self.C:
-                renumCl = offsetClause(cl, self.evidenceVarsOffsets[i])
-                renumCl.append(-self.evidenceActivators[i][actId])
-                sat.append(renumCl)
-                actId += 1
+                clauses.append(offsetClause(self.C[j], self.evidenceVarsOffsets[i]) + [-self.activators[j], -self.activators[i]])
             for cl in self.B:
-                sat.append(offsetClause(cl, self.evidenceVarsOffsets[i]))
-            for cl in sat:
-                clauses.append([-self.activators[i]] + cl) 
-
+                clauses.append(offsetClause(cl, self.evidenceVarsOffsets[i]) + [-self.activators[i]])
         if self.rime and len(self.mcses) > 0:
             for mcs in self.mcses:
                 clauses.append([self.activators[c] for c in mcs])
@@ -380,7 +361,7 @@ class Counter:
                 cl = [-i]
                 acts = []
                 for d in self.hitmapC[-l]:                    
-                    dAct = self.evidenceActivators[i][d - 1]
+                    dAct = self.activators[d - 1]
                     act += 1
                     acts.append(act)
                     cube = [dAct] + [-offset(k, self.evidenceVarsOffsets[i]) for k in self.C[d - 1] if k != -l] #C[d] is activated and l is the only literal of C[d] satisfied by the model
