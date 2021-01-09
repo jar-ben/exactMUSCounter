@@ -34,7 +34,9 @@ def receiveSignal(tempFiles, signalNumber, frame):
     sys.exit()
 
 
-def run(cmd, timeout, ttl = 3):
+def run(cmd, timeout, ttl = 3, silent = False):
+    if not silent:
+        print("Executing:", cmd)
     proc = sp.Popen([cmd], stdout=sp.PIPE, stderr=sp.PIPE, shell=True)
     try:
         (out, err) = proc.communicate(timeout = int(timeout * 1.1) + 1)
@@ -61,7 +63,6 @@ def randomBool():
     return bool(random.getrandbits(1))
 
 def exportCNF(clauses, filename, ind = [], varFile = None):
-    print("running export for ", filename)
     with open(filename, "w") as f:
         if len(ind) > 0:
             f.write("c ind " + " ".join([str(i) for i in ind]) + " 0\n")
@@ -70,7 +71,7 @@ def exportCNF(clauses, filename, ind = [], varFile = None):
         for cl in clauses:
             f.write(" ".join([str(l) for l in cl]) + " 0\n")
 
-    print(varFile, "clauses:", len(clauses), "maxVar:", maxVar)
+    print("exported {}, clauses: {}, maxVar: {}".format(filename, len(clauses), maxVar))
     if (varFile is not None) and (len(ind) > 0):
         with open(varFile, "w") as f:
             f.write(",".join ([str(v) for v in ind]))
@@ -183,8 +184,6 @@ class Counter:
         if self.rime:
             self.rimeMCSes()
 
-        self.sccs()
-
     def sccDFS(self, visitedC, visitedB, Ci, Bi, component):
         assert min(Ci, Bi) < 0 and max(Ci, Bi) >= 0
         if Ci >= 0 and not visitedC[Ci]:
@@ -219,7 +218,7 @@ class Counter:
             if visitedB[i]: continue
             component += 1
             self.sccDFS(visitedC, visitedB, -1, i, component)
-        print("SCCS: ", component)
+        print("Number of components after decomposition: ", component)
        
         self.components = component 
 
@@ -230,7 +229,6 @@ class Counter:
             return
         exportCNF(self.C + self.B, self.rimeFile)        
         cmd = "timeout {} ./rime -v 1 {}".format(self.rimeTimeout, self.rimeFile)
-        print(cmd)
         out = run(cmd, self.rimeTimeout)
         for line in out.splitlines():
             if line[:4] == "MCS ":
@@ -245,7 +243,7 @@ class Counter:
     def imuAutarkyTrim(self):
         if self.filename[-5:] == ".gcnf":
             print("-- WARNING: The computation of the intersection of MUSes and the autarky is currently not supported for .gcnf instances.")
-            print("-- I am keeping the original input (no trim based on the intersection nor autarky).")
+            print("--- I am keeping the original input (no trim based on the intersection nor autarky).")
             return
         autarky = self.getAutarky() if self.autarky else [i for i in range(len(self.C))]
         imu = self.getImu() if self.imu else []
@@ -395,6 +393,7 @@ class Counter:
 
     #SCC based decomposition
     def W7(self, current):
+        self.sccs()                                                          
         clauses = []
         acts = []
         for component in range(1, self.components + 1):
@@ -406,7 +405,6 @@ class Counter:
             clauses += cls
             acts.append(current)
         clauses.append([a for a in acts])
-        print("w7 clauses:", len(clauses))
         return clauses
 
     def parseGanak(self, out):
@@ -430,45 +428,39 @@ class Counter:
             print("Too large wrapper,", str(len(WrapperClauses)), "terminating")
             sys.exit()
         exportCNF(WrapperClauses, self.WrapperFile, WrapperInd, self.WrapperIndFile)
-        print(self.WrapperFile)
         
-        RemainderClauses, RemainderInd = self.remainder()
+        RemainderClauses, RemainderInd = WrapperClauses + self.allSAT(), WrapperInd
         if len(RemainderClauses) > 1200000:
             print("Too large wrapper,", str(len(RemainderClauses)), "terminating")
             sys.exit()
         exportCNF(RemainderClauses, self.RemainderFile, RemainderInd, self.RemainderIndFile)
-        print(self.RemainderFile)
 
         timeout = 3600
         if self.ganak:
             cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak -noIBCP {}".format(timeout, self.WrapperFile)
             cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak {}".format(timeout, self.WrapperFile)
-            print(cmd)
             wrapperSize = self.parseGanak(run(cmd, timeout))
             print("Wrapper size:", wrapperSize)
 
             cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak -noIBCP {}".format(timeout, self.RemainderFile)
             cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak {}".format(timeout, self.RemainderFile)
-            print(cmd)
             remainderSize = self.parseGanak(run(cmd, timeout))
             print("Remainder size:", remainderSize)
         else:
             cmd = "timeout {} ./projMC_linux {} -fpv=\"{}\"".format(timeout, self.WrapperFile, self.WrapperIndFile)
-            print(cmd)
             wrapperSize = self.parseProjMC(run(cmd, timeout))
             print("Wrapper size:", wrapperSize)
 
             cmd = "timeout {} ./projMC_linux {} -fpv=\"{}\"".format(timeout, self.RemainderFile, self.RemainderIndFile)
-            print(cmd)
             remainderSize = self.parseProjMC(run(cmd, timeout))
             print("Remainder size:", remainderSize)
          
         count = -1
         if (wrapperSize >= 0) and (remainderSize >= 0): count = wrapperSize - remainderSize
         print("MUS count:", count)
-        #os.remove(self.RemainderFile)
+        os.remove(self.RemainderFile)
         os.remove(self.RemainderIndFile)
-        #os.remove(self.WrapperFile)
+        os.remove(self.WrapperFile)
         os.remove(self.WrapperIndFile)
 
 import sys
@@ -487,13 +479,19 @@ if __name__ == "__main__":
     parser.add_argument("--rime-timeout", type=int, default=10, help = "Set timeout for RIME.")
     parser.add_argument("--min-size", type=int, default=-1, help = "Specify the minimum size (cardinality) of the counted MUSes.")
     parser.add_argument("--max-size", type=int, default=-1, help = "Specify the maximum size (cardinality) of the counted MUSes.")
+    parser.add_argument("--keep-files", action='store_true', help = "Do not delete auxiliary files at the end of the computation (for debugging purposes).")
     args = parser.parse_args()
 
 
     counter = Counter(args.input_file, args.autarky, args.imu, args.rime, args.rime_timeout)
-    signal.signal(signal.SIGHUP, partial(receiveSignal, counter.tmpFiles))
-    signal.signal(signal.SIGINT, partial(receiveSignal, counter.tmpFiles))
-    signal.signal(signal.SIGTERM, partial(receiveSignal, counter.tmpFiles))
+
+    if args.keep_files:
+        print("-- The flag --keep-files was set. Auxiliary files created during the computation will not be deleted. The created files might include:")
+        print("---", counter.tmpFiles)
+    else:
+        signal.signal(signal.SIGHUP, partial(receiveSignal, counter.tmpFiles))
+        signal.signal(signal.SIGINT, partial(receiveSignal, counter.tmpFiles))
+        signal.signal(signal.SIGTERM, partial(receiveSignal, counter.tmpFiles))
 
     counter.w4 = args.w4
     counter.w5 = args.w5
@@ -502,4 +500,5 @@ if __name__ == "__main__":
     counter.w8 = args.w8 #min size
     counter.max_size = args.max_size
     counter.min_size = args.min_size
+    counter.keep_files = args.keep_files
     counter.runExact()
