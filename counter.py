@@ -1,5 +1,6 @@
 import sys
 from math import log
+from math import floor
 import subprocess as sp
 import random
 import time
@@ -9,6 +10,7 @@ import argparse
 import os
 from functools import partial
 import signal
+sys.path.insert(0, "/home/xbendik/usr/lib/lib/python3.7/site-packages")
 from pysat.card import *
 
 
@@ -176,6 +178,7 @@ class Counter:
         self.w5 = False
         self.w6 = False
         self.w7 = False
+        self.w8 = False
 
         if self.rime:
             self.rimeMCSes()
@@ -287,6 +290,10 @@ class Counter:
         if self.w7:
             act = maxVar(clauses)
             clauses += self.W7(act)
+        if self.w8 and "benchsMUS" in self.filename: #read from the name of the generated benchmarks. In future, use an algorihm to compute the minimum cardinality
+            self.min_size = floor(float(self.filename.split("_")[-2])/2)
+            print("self min.size", self.min_size)
+
 
         if self.min_size > 0:
             act = maxVar(clauses)
@@ -493,7 +500,8 @@ if __name__ == "__main__":
     parser.add_argument("--w4", action='store_true', help = "Compose with the wrapper W4.")
     parser.add_argument("--w5", action='store_true', help = "Compose with the wrapper W5.")
     parser.add_argument("--w6", action='store_true', help = "Compose with the wrapper W6.")
-    parser.add_argument("--w7", action='store_true', help = "Compose with the wrapper W7 (SCC based decomposition).")
+    parser.add_argument("--w7", action='store_true', help = "Compose with the wrapper W7 (connected components based decomposition).")
+    parser.add_argument("--w8", action='store_true', help = "Compose with the wrapper W8 (compute (an underapproximation of) a minimum MUS cardinality.")
     parser.add_argument("--rime", action='store_true', help = "Use RIME to enumerate some MCSes and use them to trim the searchspace.")
     parser.add_argument("--rime-timeout", type=int, default=10, help = "Set timeout for RIME.")
     parser.add_argument("--min-size", type=int, default=-1, help = "Specify the minimum size (cardinality) of the counted MUSes.")
@@ -510,6 +518,7 @@ if __name__ == "__main__":
     counter.w5 = args.w5
     counter.w6 = args.w6
     counter.w7 = args.w7
+    counter.w8 = args.w8 #min size
     counter.max_size = args.max_size
     counter.min_size = args.min_size
     counter.runExact()
