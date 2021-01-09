@@ -218,7 +218,7 @@ class Counter:
             if visitedB[i]: continue
             component += 1
             self.sccDFS(visitedC, visitedB, -1, i, component)
-        print("Number of components after decomposition: ", component)
+        print("-- Number of components after decomposition:", component)
        
         self.components = component 
 
@@ -290,15 +290,16 @@ class Counter:
             clauses += self.W7(act)
         if self.w8 and "benchsMUS" in self.filename: #read from the name of the generated benchmarks. In future, use an algorihm to compute the minimum cardinality
             self.min_size = floor(float(self.filename.split("_")[-2])/2)
-            print("self min.size", self.min_size)
 
 
         if self.min_size > 0:
             act = maxVar(clauses)
             clauses += CardEnc.atleast(lits=self.activators, bound=self.min_size, encoding=8, top_id=act)
+            print("-- Using a lower-bound on MUS cardinality:", self.min_size)
         if self.max_size > 0:
             act = maxVar(clauses)
             clauses += CardEnc.atmost(lits=self.activators, bound=self.max_size, encoding=8, top_id=act)
+            print("-- Using an upper-bound on MUS cardinality:", self.max_size)
 
         inds = [i for i in range(1, self.dimension + 1)]
         return clauses, inds
@@ -388,7 +389,6 @@ class Counter:
             for l in self.C[i]:
                 if len(self.hitmapB[-l]) == 0:
                     clauses.append([-(i + 1)] + self.hitmapC[-l])
-        print ("w6 clauses:", len(clauses))
         return clauses
 
     #SCC based decomposition
@@ -465,6 +465,7 @@ class Counter:
 
 import sys
 if __name__ == "__main__":
+    startTime = time.time()
     parser = argparse.ArgumentParser("MUS counter")
     parser.add_argument("--verbose", "-v", action="count", help = "Use the flag to increase the verbosity of the outputs. The flag can be used repeatedly.")
     parser.add_argument("input_file", help = "A path to the input file. Either a .cnf or a .gcnf instance. See ./examples/")
@@ -502,3 +503,4 @@ if __name__ == "__main__":
     counter.min_size = args.min_size
     counter.keep_files = args.keep_files
     counter.runExact()
+    print("Total execution (clock) time in seconds:", time.time() - startTime) 
