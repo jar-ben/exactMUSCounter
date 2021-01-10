@@ -329,7 +329,7 @@ class Counter:
         if self.w9:
             hard = clauses[:]
             soft = [[i] for i in range(1, self.dimension + 1)]
-            self.min_size = maxSat(hard, soft)
+            self.max_size = maxSat(hard, soft)
 
         if self.min_size > 0:
             act = maxVar(clauses)
@@ -490,12 +490,12 @@ class Counter:
         timeout = 3600
         if self.ganak:
             cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak -noIBCP {}".format(timeout, self.WrapperFile)
-            cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak {}".format(timeout, self.WrapperFile)
+            cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak -cs 16000 {}".format(timeout, self.WrapperFile)
             wrapperSize = self.parseGanak(run(cmd, timeout))
             print("Wrapper size:", wrapperSize)
 
             cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak -noIBCP {}".format(timeout, self.RemainderFile)
-            cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak {}".format(timeout, self.RemainderFile)
+            cmd = "timeout {} /home/xbendik/bin/ganak/build/ganak -cs 16000 {}".format(timeout, self.RemainderFile)
             remainderSize = self.parseGanak(run(cmd, timeout))
             print("Remainder size:", remainderSize)
         else:
@@ -510,10 +510,11 @@ class Counter:
         count = -1
         if (wrapperSize >= 0) and (remainderSize >= 0): count = wrapperSize - remainderSize
         print("MUS count:", count)
-        os.remove(self.RemainderFile)
-        os.remove(self.RemainderIndFile)
-        os.remove(self.WrapperFile)
-        os.remove(self.WrapperIndFile)
+        if not self.keep_files:
+            os.remove(self.RemainderFile)
+            os.remove(self.RemainderIndFile)
+            os.remove(self.WrapperFile)
+            os.remove(self.WrapperIndFile)
 
 import sys
 if __name__ == "__main__":
