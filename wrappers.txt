@@ -1,0 +1,15 @@
+Mapping between the wrappers in paper and arguments of counter.py
+
+W1 - --imu --autarky
+W2 IMU - enabled by default, --imu to disable it
+W3 UMU - enabled by default, --autarky to disable it
+W4 Minimum MUS cardinality - --w8, not implemented yet (works for benchMUS by getting the information from the name of the benchmark file)
+W5 Maximum MUS cardinality - --w9, implemented
+W6 Component partitioning - --w7
+W7 Minimal Hitting Set Duality - --rime, --rime-timeout <seconds>
+W8 Literal Negation Cover - --w6
+W9 Non-Extendable Evidence Models - --w4
+W10 Enforced Evidence Models - --w5
+
+To enable all
+--w4 --w5 --w6 --w7 --w8 --w9 --rime
