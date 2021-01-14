@@ -134,6 +134,8 @@ def maxSat(Hard, Soft):
     cmd = 'timeout {} ./uwrmaxsat -m {}'.format(satTimeout, file)
     out = run(cmd, satTimeout)
     model = []
+    if os.path.exists(file):
+        os.remove(file)
     for line in out.splitlines():
         if line[:2] == "o ":
             optimal = int(line[2:])
@@ -250,11 +252,11 @@ class Counter:
        
         self.components = component 
 
-
+    # RIME currently handles only .cnf instances. For .gcnf (.wcnf) instances, we employ MCSLS
     def rimeMCSes(self):
         if self.filename[-5:] == ".gcnf":
-            print("-- WARNING: The computation of MCSes via RIME is currently not supported for .gcnf instances.")
-            return
+            print("-- WARNING: The computation of MCSes via RIME is currently not supported for .gcnf instances. Using mcsls instead.")
+            return self.mcslsMCSes()
         exportCNF(self.C + self.B, self.rimeFile)        
         cmd = "timeout {} ./rime -v 1 --mcs-limit {} {}".format(self.rimeTimeout, self.rimeMCSLimit, self.rimeFile)
         out = run(cmd, self.rimeTimeout)
@@ -266,7 +268,20 @@ class Counter:
         print("identified MCSes: ", len(self.mcses))
         if os.path.exists(self.rimeFile):
             os.remove(self.rimeFile)
-             
+
+    def mcslsMCSes(self):
+        hard = self.B[:]
+        soft = self.C[:]
+        open(self.rimeFile, "w").write(renderWcnf(hard, soft))
+        cmd = "timeout {} ./mcsls -num {} -dis {}".format(self.rimeTimeout, self.rimeMCSLimit, self.rimeFile)
+        out = run(cmd, self.rimeTimeout)
+        mcses = []
+        for line in out.splitlines():
+            if line[:7] == "c MCS: ":
+                mcs = [int(c) - (len(hard) + 1) for c in line[7:].rstrip().split(" ")] #0 based indexing
+                self.mcses.append(mcs)
+        if os.path.exists(self.rimeFile):
+            os.remove(self.rimeFile)
 
     def imuAutarkyTrim(self):
         if self.filename[-5:] == ".gcnf":
@@ -463,7 +478,7 @@ class Counter:
             self.rimeMCSes()
         if len(self.mcses) > 0:
             hard = []
-            for mcs in self.mcses[:10]:
+            for mcs in self.mcses:
                 hard.append([c + 1 for c in mcs]) #+1 indexing for the max sat (we cannot have "0" variables)
 
             universe = []
@@ -555,7 +570,7 @@ if __name__ == "__main__":
     parser.add_argument("--w10", action='store_true', help = "Compose with the wrapper W10 (prevent simple implicant between activated clauses).")
     parser.add_argument("--rime", action='store_true', help = "Use RIME to enumerate some MCSes and use them to trim the searchspace.")
     parser.add_argument("--rime-timeout", type=int, default=10, help = "Set timeout for RIME.")
-    parser.add_argument("--rime-mcs-limit", type=int, default=100, help = "Limit the number of MCSes identified by RIME.")
+    parser.add_argument("--rime-mcs-limit", type=int, default=100000, help = "Limit the number of MCSes identified by RIME.")
     parser.add_argument("--min-size", type=int, default=-1, help = "Specify the minimum size (cardinality) of the counted MUSes.")
     parser.add_argument("--max-size", type=int, default=-1, help = "Specify the maximum size (cardinality) of the counted MUSes.")
     parser.add_argument("--keep-files", action='store_true', help = "Do not delete auxiliary files at the end of the computation (for debugging purposes).")
