@@ -141,7 +141,7 @@ def maxSat(Hard, Soft):
     return -1 #fail
 
 class Counter:
-    def __init__(self, filename, useAutarky, useImu, rime, rimeTimeout):
+    def __init__(self, filename, useAutarky, useImu):
         self.filename = filename
         self.C, self.B = parse(filename)
         self.imu = useImu
@@ -173,14 +173,11 @@ class Counter:
                 assert l in self.lits
                 self.hitmapB[l].append(i) #note that here we store 0-based index as opposed to hitmapC
 
-
-        self.rime = rime
-        self.rimeTimeout = rimeTimeout
         self.mcses = []
 
-        self.WrapperFile = "./tmp/wrapper_{}_{}.cnf".format(self.rid,self.rimeTimeout)
+        self.WrapperFile = "./tmp/wrapper_{}.cnf".format(self.rid)
         self.WrapperIndFile = self.WrapperFile[:-4] + "_ind.cnf"
-        self.RemainderFile = "./tmp/remainder_{}_{}.cnf".format(self.rid, self.rimeTimeout)
+        self.RemainderFile = "./tmp/remainder_{}.cnf".format(self.rid)
         self.RemainderIndFile = self.RemainderFile[:-4] + "_ind.cnf"
         self.rimeFile = "./tmp/rime_{}.cnf".format(self.rid)
         self.tmpFiles = [self.WrapperFile, self.WrapperIndFile, self.RemainderFile, self.RemainderIndFile, self.rimeFile]
@@ -212,9 +209,8 @@ class Counter:
         self.w8 = False
         self.w9 = False
         self.w10 = False
-
-        if self.rime:
-            self.rimeMCSes()
+        self.rime = False
+        self.rimeTimeout = 10
 
     def sccDFS(self, visitedC, visitedB, Ci, Bi, component):
         assert min(Ci, Bi) < 0 and max(Ci, Bi) >= 0
@@ -260,7 +256,7 @@ class Counter:
             print("-- WARNING: The computation of MCSes via RIME is currently not supported for .gcnf instances.")
             return
         exportCNF(self.C + self.B, self.rimeFile)        
-        cmd = "timeout {} ./rime -v 1 {}".format(self.rimeTimeout, self.rimeFile)
+        cmd = "timeout {} ./rime -v 1 --mcs-limit {} {}".format(self.rimeTimeout, self.rimeMCSLimit, self.rimeFile)
         out = run(cmd, self.rimeTimeout)
         for line in out.splitlines():
             if line[:4] == "MCS ":
@@ -310,6 +306,8 @@ class Counter:
 
     def wrapper(self):
         clauses = self.W1()
+        if self.rime:
+            clauses += self.W_RIME()
         if self.w4:
             clauses += self.W4()
         if self.w6:
@@ -320,8 +318,11 @@ class Counter:
         if self.w7:
             act = maxVar(clauses)
             clauses += self.W7(act)
-        if self.w8 and "benchsMUS" in self.filename: #read from the name of the generated benchmarks. In future, use an algorihm to compute the minimum cardinality
-            self.min_size = floor(float(self.filename.split("_")[-2])/2)
+        if self.w8:
+            if "benchsMUS" in self.filename: #read from the name of the generated benchmarks. In future, use an algorihm to compute the minimum cardinality
+                self.min_size = floor(float(self.filename.split("_")[-2])/2)
+            else:
+                self.W8()
         if self.w10:
             clauses += self.W9()
 
@@ -370,9 +371,6 @@ class Counter:
                 clauses.append(offsetClause(self.C[j], self.evidenceVarsOffsets[i]) + [-self.activators[j], -self.activators[i]])
             for cl in self.B:
                 clauses.append(offsetClause(cl, self.evidenceVarsOffsets[i]) + [-self.activators[i]])
-        if self.rime and len(self.mcses) > 0:
-            for mcs in self.mcses:
-                clauses.append([self.activators[c] for c in mcs])
         return clauses 
 
     def allSAT(self):
@@ -459,6 +457,30 @@ class Counter:
         clauses.append([a for a in acts])
         return clauses
 
+    # minimum MUS cardinality lower-bound, based on MCS enumeration via RIME
+    def W8(self):
+        if len(self.mcses) == 0:
+            self.rimeMCSes()
+        if len(self.mcses) > 0:
+            hard = []
+            for mcs in self.mcses[:10]:
+                hard.append([c + 1 for c in mcs]) #+1 indexing for the max sat (we cannot have "0" variables)
+
+            universe = []
+            for mcs in hard:
+                universe += mcs
+            soft = [[-c] for c in set(universe)]
+            self.min_size = maxSat(hard, soft)
+
+    #RIME, MCS enumeration 
+    def W_RIME(self):
+        clauses = []
+        self.rimeMCSes()
+        if len(self.mcses) > 0:
+            for mcs in self.mcses:
+                clauses.append([self.activators[c] for c in mcs])
+        return clauses
+
     def parseGanak(self, out):
         if "# END" not in out: return -1
         reading = False
@@ -533,13 +555,14 @@ if __name__ == "__main__":
     parser.add_argument("--w10", action='store_true', help = "Compose with the wrapper W10 (prevent simple implicant between activated clauses).")
     parser.add_argument("--rime", action='store_true', help = "Use RIME to enumerate some MCSes and use them to trim the searchspace.")
     parser.add_argument("--rime-timeout", type=int, default=10, help = "Set timeout for RIME.")
+    parser.add_argument("--rime-mcs-limit", type=int, default=100, help = "Limit the number of MCSes identified by RIME.")
     parser.add_argument("--min-size", type=int, default=-1, help = "Specify the minimum size (cardinality) of the counted MUSes.")
     parser.add_argument("--max-size", type=int, default=-1, help = "Specify the maximum size (cardinality) of the counted MUSes.")
     parser.add_argument("--keep-files", action='store_true', help = "Do not delete auxiliary files at the end of the computation (for debugging purposes).")
     args = parser.parse_args()
 
 
-    counter = Counter(args.input_file, args.autarky, args.imu, args.rime, args.rime_timeout)
+    counter = Counter(args.input_file, args.autarky, args.imu)
 
     if args.keep_files:
         print("-- The flag --keep-files was set. Auxiliary files created during the computation will not be deleted. The created files might include:")
@@ -558,6 +581,9 @@ if __name__ == "__main__":
     counter.w10 = args.w10
     counter.max_size = args.max_size
     counter.min_size = args.min_size
+    counter.rime = args.rime
+    counter.rimeTimeout = args.rime_timeout
+    counter.rimeMCSLimit = args.rime_mcs_limit
     counter.keep_files = args.keep_files
     counter.runExact()
     print("Total execution (clock) time in seconds:", time.time() - startTime) 
