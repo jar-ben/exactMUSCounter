@@ -513,7 +513,6 @@ class Counter:
 
     def runExact(self):
         self.ganak = True
-        self.ganak = False
         WrapperClauses, WrapperInd = self.wrapper()
         if len(WrapperClauses) > 1200000:
             print("Too large wrapper,", str(len(WrapperClauses)), "terminating")
