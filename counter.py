@@ -145,13 +145,27 @@ def maxSat(Hard, Soft):
     cmd = 'timeout {} ./uwrmaxsat -m {}'.format(satTimeout, file)
     out = run(cmd, satTimeout)
     model = []
-    if os.path.exists(file):
-        os.remove(file)
+    #if os.path.exists(file):
+    #    os.remove(file)
+
+    model = {}
     for line in out.splitlines():
-        if line[:2] == "o ":
-            optimal = int(line[2:])
-            return optimal
-    return -1 #fail
+        if line[:2] == "v ":
+            for l in line[2:].split(" "):
+                l = int(l)
+                var = l if l > 0 else -l
+                assert var not in model
+                model[var] = l > 0
+    #print(model)
+    if model == {}: return -1 #failed to load the model
+
+    satisfied = 0
+    for cl in Soft:
+        for l in cl:
+            if (l > 0 and model[l]) or (l < 0 and not model[-l]):
+                satisfied += 1
+                break
+    return satisfied if satisfied > 0 else -1
 
 class Counter:
     def __init__(self, filename, useAutarky, useImu):
@@ -267,8 +281,8 @@ class Counter:
     def rimeMCSes(self):
         if self.filename[-5:] == ".gcnf":
             print("-- WARNING: The computation of MCSes via RIME is currently not supported for .gcnf instances. Using mcsls instead.")
-            return self.marcoMCSes()
-            #return self.mcslsMCSes()
+            #return self.marcoMCSes()
+            return self.mcslsMCSes()
         exportCNF(self.C + self.B, self.rimeFile)        
         cmd = "timeout {} ./rime -v 1 --mcs-limit {} {}".format(self.rimeTimeout, self.rimeMCSLimit, self.rimeFile)
         out = run(cmd, self.rimeTimeout)
@@ -285,7 +299,7 @@ class Counter:
         hard = self.B[:]
         soft = self.C[:]
         open(self.rimeFile, "w").write(renderWcnf(hard, soft))
-        cmd = "timeout {} ./mcsls -num {} {}".format(self.rimeTimeout, self.rimeMCSLimit, self.rimeFile)
+        cmd = "timeout {} ./mcsls -dis -num {} {}".format(self.rimeTimeout, self.rimeMCSLimit, self.rimeFile)
         out = run(cmd, self.rimeTimeout)
         mcses = []
         for line in out.splitlines():
@@ -302,7 +316,7 @@ class Counter:
         open(self.rimeFile, "w").write(renderWcnf(hard, soft))
         marco_file = "./tmp/marco_{}.gcnf".format(self.rid)
         exportGCNF(hard, soft, marco_file)
-        cmd = "timeout {} /home/xbendik/bin/MARCO/marco.py -b MUSes --print-mcses {}".format(self.rimeTimeout, marco_file)
+        cmd = "timeout {} /home/xbendik/bin/MARCO/marco.py -b MCSes --print-mcses {}".format(self.rimeTimeout, marco_file)
         out = run(cmd, self.rimeTimeout)
         mcses = []
         for line in out.splitlines():
