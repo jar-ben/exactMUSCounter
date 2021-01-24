@@ -76,6 +76,17 @@ def exportCNF(clauses, filename, ind = [], varFile = None):
         with open(varFile, "w") as f:
             f.write(",".join ([str(v) for v in ind]))
 
+def exportGCNF(hard, soft, filename):
+    with open(filename, "w") as f:
+        maxVar = max([max(abs(l) for l in cl) for cl in hard + soft])
+        f.write("p gcnf {} {} {}\n".format(maxVar, len(soft + hard), len(soft)))
+        for cl in hard:
+            f.write("{0} " + " ".join([str(l) for l in cl]) + " 0\n")
+        for i in range(1, len(soft) + 1):
+            f.write("{{{}}} ".format(i) + " ".join([str(l) for l in soft[i - 1]]) + " 0\n")
+
+    print("exported {}, hard clauses: {}, soft clauses: {}, maxVar: {}".format(filename, len(hard), len(soft), maxVar))
+
 #parse .gcnf instance,
 #returns a pair C,B where B contains the base (hard) clauses and C the other clauses
 def parse(filename):
@@ -256,7 +267,8 @@ class Counter:
     def rimeMCSes(self):
         if self.filename[-5:] == ".gcnf":
             print("-- WARNING: The computation of MCSes via RIME is currently not supported for .gcnf instances. Using mcsls instead.")
-            return self.mcslsMCSes()
+            return self.marcoMCSes()
+            #return self.mcslsMCSes()
         exportCNF(self.C + self.B, self.rimeFile)        
         cmd = "timeout {} ./rime -v 1 --mcs-limit {} {}".format(self.rimeTimeout, self.rimeMCSLimit, self.rimeFile)
         out = run(cmd, self.rimeTimeout)
@@ -283,6 +295,23 @@ class Counter:
         print("identified MCSes: ", len(self.mcses))
         if os.path.exists(self.rimeFile) and not self.keep_files:
             os.remove(self.rimeFile)
+
+    def marcoMCSes(self):
+        hard = self.B[:]
+        soft = self.C[:]
+        open(self.rimeFile, "w").write(renderWcnf(hard, soft))
+        marco_file = "./tmp/marco_{}.gcnf".format(self.rid)
+        exportGCNF(hard, soft, marco_file)
+        cmd = "timeout {} /home/xbendik/bin/MARCO/marco.py -b MUSes --print-mcses {}".format(self.rimeTimeout, marco_file)
+        out = run(cmd, self.rimeTimeout)
+        mcses = []
+        for line in out.splitlines():
+            if line[:7] == "c MCS: ":
+                mcs = [int(c) - (len(hard) + 1) for c in line[7:].rstrip().split(" ")] #0 based indexing
+                self.mcses.append(mcs)
+        print("identified MCSes: ", len(self.mcses))
+        if os.path.exists(marco_file) and not self.keep_files:
+            os.remove(marco_file)
 
     def imuAutarkyTrim(self):
         if self.filename[-5:] == ".gcnf":
