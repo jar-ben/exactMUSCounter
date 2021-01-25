@@ -145,8 +145,8 @@ def maxSat(Hard, Soft):
     cmd = 'timeout {} ./uwrmaxsat -m {}'.format(satTimeout, file)
     out = run(cmd, satTimeout)
     model = []
-    #if os.path.exists(file):
-    #    os.remove(file)
+    if os.path.exists(file):
+        os.remove(file)
 
     model = {}
     for line in out.splitlines():
@@ -378,9 +378,6 @@ class Counter:
             act = maxVar(clauses)
             clauses += self.W7(act)
         if self.w8:
-            if "benchsMUS" in self.filename: #read from the name of the generated benchmarks. In future, use an algorihm to compute the minimum cardinality
-                self.min_size = floor(float(self.filename.split("_")[-2])/2)
-            else:
                 self.W8()
         if self.w10:
             clauses += self.W10()
@@ -529,8 +526,8 @@ class Counter:
             universe = []
             for mcs in hard:
                 universe += mcs
-            soft = [[-c] for c in set(universe)]
-            self.min_size = maxSat(hard, soft)
+            soft = [[-c] for c in set(universe)] #we maximize the number of non-selected clauses
+            self.min_size = len(set(universe)) - maxSat(hard, soft) #activated = all - non-selected
 
     #RIME, MCS enumeration 
     def W_RIME(self):
