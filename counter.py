@@ -136,7 +136,7 @@ def renderWcnf(Hard, Soft):
     return result
 
 def maxSat(Hard, Soft):
-    satTimeout = 180
+    satTimeout = 300
     wcnf = renderWcnf(Hard, Soft)
     file = "./tmp/maxsat_{}.wcnf".format(randint(1,100000000))
     with open(file, "w") as f:
@@ -165,6 +165,7 @@ def maxSat(Hard, Soft):
             if (l > 0 and model[l]) or (l < 0 and not model[-l]):
                 satisfied += 1
                 break
+    print("max sat value", satisfied)
     return satisfied if satisfied > 0 else -1
 
 class Counter:
@@ -527,7 +528,11 @@ class Counter:
             for mcs in hard:
                 universe += mcs
             soft = [[-c] for c in set(universe)] #we maximize the number of non-selected clauses
-            self.min_size = len(set(universe)) - maxSat(hard, soft) #activated = all - non-selected
+            maxSatValue = maxSat(hard, soft)
+            if maxSatValue >= 0:
+                self.min_size = len(set(universe)) - maxSatValue #activated = all - non-selected
+            else:
+                self.min_size = -1
 
     #RIME, MCS enumeration 
     def W_RIME(self):
@@ -554,13 +559,13 @@ class Counter:
     def runExact(self):
         self.ganak = True
         WrapperClauses, WrapperInd = self.wrapper()
-        if len(WrapperClauses) > 1200000:
+        if len(WrapperClauses) > 5200000:
             print("Too large wrapper,", str(len(WrapperClauses)), "terminating")
             sys.exit()
         exportCNF(WrapperClauses, self.WrapperFile, WrapperInd, self.WrapperIndFile)
         
         RemainderClauses, RemainderInd = WrapperClauses + self.allSAT(), WrapperInd
-        if len(RemainderClauses) > 1200000:
+        if len(RemainderClauses) > 5200000:
             print("Too large wrapper,", str(len(RemainderClauses)), "terminating")
             sys.exit()
         exportCNF(RemainderClauses, self.RemainderFile, RemainderInd, self.RemainderIndFile)
