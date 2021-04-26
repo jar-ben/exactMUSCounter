@@ -249,7 +249,7 @@ class Counter:
                 for d in self.hitmapC[-l]: #clauses that contain the negated literal (offset +1!)
                     self.sccDFS(visitedC, visitedB, d - 1, -1, component)
                 for d in self.hitmapB[-l]: #clauses that contain the negated literal (offset +1!)
-                    self.sccDFS(visitedC, visitedB, -1, d - 1, component)
+                    self.sccDFS(visitedC, visitedB, -1, d, component)
         if Bi >= 0 and not visitedB[Bi]:
             visitedB[Bi] = True
             self.sccB[Bi] = component
