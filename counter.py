@@ -10,7 +10,6 @@ import argparse
 import os
 from functools import partial
 import signal
-sys.path.insert(0, "/home/xbendik/usr/lib/lib/python3.7/site-packages")
 from pysat.card import *
 
 
@@ -208,6 +207,7 @@ class Counter:
         self.RemainderFile = "./tmp/remainder_{}.cnf".format(self.rid)
         self.RemainderIndFile = self.RemainderFile[:-4] + "_ind.cnf"
         self.rimeFile = "./tmp/rime_{}.cnf".format(self.rid)
+        self.rimeFileW = "./tmp/rime_{}.wcnf".format(self.rid)
         self.tmpFiles = [self.WrapperFile, self.WrapperIndFile, self.RemainderFile, self.RemainderIndFile, self.rimeFile]
 
         self.activators = [i + 1 for i in range(self.dimension)]
@@ -281,8 +281,7 @@ class Counter:
     # RIME currently handles only .cnf instances. For .gcnf (.wcnf) instances, we employ MCSLS
     def rimeMCSes(self):
         if self.filename[-5:] == ".gcnf":
-            print("-- WARNING: The computation of MCSes via RIME is currently not supported for .gcnf instances. Using mcsls instead.")
-            return self.mcslsMCSes()
+            return self.rimeWMCSes()
         exportCNF(self.C + self.B, self.rimeFile)        
         cmd = "timeout {} ./tools/rime -v 1 --mcs-limit {} {}".format(self.rimeTimeout, self.rimeMCSLimit, self.rimeFile)
         out = run(cmd, self.rimeTimeout)
@@ -295,20 +294,20 @@ class Counter:
         if os.path.exists(self.rimeFile) and not self.keep_files:
             os.remove(self.rimeFile)
 
-    def mcslsMCSes(self):
+    def rimeWMCSes(self):
         hard = self.B[:]
         soft = self.C[:]
-        open(self.rimeFile, "w").write(renderWcnf(hard, soft))
-        cmd = "timeout {} ./mcsls -dis -num {} {}".format(self.rimeTimeout, self.rimeMCSLimit, self.rimeFile)
+        open(self.rimeFileW, "w").write(renderWcnf(hard, soft))
+        cmd = "timeout {} ./tools/rime -v 1 --mcs-limit {} {}".format(self.rimeTimeout, self.rimeMCSLimit, self.rimeFileW)
         out = run(cmd, self.rimeTimeout)
         mcses = []
         for line in out.splitlines():
-            if line[:7] == "c MCS: ":
-                mcs = [int(c) - (len(hard) + 1) for c in line[7:].rstrip().split(" ")] #0 based indexing
+            if line[:4] == "MCS ":
+                mcs = [int(c) - (len(hard) + 1) for c in line.rstrip().split(" ")[1:]] #0 based indexing
                 self.mcses.append(mcs)
         print("identified MCSes: ", len(self.mcses))
-        if os.path.exists(self.rimeFile) and not self.keep_files:
-            os.remove(self.rimeFile)
+        if os.path.exists(self.rimeFileW) and not self.keep_files:
+            os.remove(self.rimeFileW)
 
     def imuAutarkyTrim(self):
         if self.filename[-5:] == ".gcnf":
@@ -544,7 +543,7 @@ class Counter:
                 return int(line.rstrip().split()[1])
 
     def runExact(self):
-        self.ganak = True
+        self.ganak = True #currently, we support only ganak (we do not distribute projMC)
         WrapperClauses, WrapperInd = self.wrapper()
         if len(WrapperClauses) > 5200000:
             print("Too large wrapper,", str(len(WrapperClauses)), "terminating")
@@ -569,11 +568,11 @@ class Counter:
             wrapperSize = self.parseGanak(run(cmd, timeout))
             print("Wrapper size:", wrapperSize)
         else:
-            cmd = "timeout {} ./projMC_linux {} -fpv=\"{}\"".format(timeout, self.WrapperFile, self.WrapperIndFile)
+            cmd = "timeout {} ./tools/projMC_linux {} -fpv=\"{}\"".format(timeout, self.WrapperFile, self.WrapperIndFile)
             wrapperSize = self.parseProjMC(run(cmd, timeout))
             print("Wrapper size:", wrapperSize)
 
-            cmd = "timeout {} ./projMC_linux {} -fpv=\"{}\"".format(timeout, self.RemainderFile, self.RemainderIndFile)
+            cmd = "timeout {} ./tools/projMC_linux {} -fpv=\"{}\"".format(timeout, self.RemainderFile, self.RemainderIndFile)
             remainderSize = self.parseProjMC(run(cmd, timeout))
             print("Remainder size:", remainderSize)
          
