@@ -60,14 +60,14 @@ def renderWcnf(Hard, Soft):
 def maxSat(Hard, Soft):
     satTimeout = 180
     wcnf = renderWcnf(Hard, Soft)
-    file = "/var/tmp/testAutarky_{}.wcnf".format(randint(1,100000000))
+    file = "./tmp/testAutarky_{}.wcnf".format(randint(1,100000000))
     with open(file, "w") as f:
         f.write(wcnf)
 
     with open(file+".cnf", "w") as f:
         f.write(renderCnf(Hard+Soft))
 
-    cmd = 'timeout {} ./uwrmaxsat -m {}'.format(satTimeout, file)
+    cmd = 'timeout {} ./tools/uwrmaxsat -m {}'.format(satTimeout, file)
     proc = sp.Popen([cmd], stdout=sp.PIPE, shell=True)
     (out, err) = proc.communicate()
     out = out.decode("utf-8")         
