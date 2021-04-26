@@ -7,6 +7,37 @@ In particular, a subset N of F is an MUS of F iff N is unsatisfiable and every p
 
 To see all options, run `python3 counter.py -h`
 
+## Input Formats
+The tools supports counting for "plain" MUS instances and "group" MUS instances. 
+
+### "Plain" MUS
+The input for plain MUS counting is the standard [DIMACS cnf format](https://www.cs.utexas.edu/users/moore/acl2/manuals/current/manual/index-seo.php/SATLINK____DIMACS). The DIMACS files should have the extension ".cnf". An example .cnf file can be found in `./examples/test.cnf`:
+
+```
+p cnf 2 5
+1 0
+-1 0
+2 0
+-2 0
+-1 -2 0
+```
+
+In this example, there are three MUSes: {1,2}, {3,4}, and {1,3,5}, where the numbers are 1-based indices of individual clauses. 
+
+### "Group" MUS
+In the group MUS settings, the input clauses are divided into a set `H` of "hard clauses" and a set `S` of "soft clauses". A group MUS is a subset `N` of `S` such that `N \cup H` is unsatisfiable, and for every proper subset `N'` of `N` the set `N' \cup H` is satisfiable. The group MUS instances are defined in the "group DIMACS format", i.e., files with the extension .gcnf. The header has the format "p gcnf \<variables\> \<clauses\> \<soft_clauses\>". Furthermore, every hard clauses is marked with {0} at the start of the line, and every soft clauses is marked with {k} where k is a positive integer. An example .gcnf file can be found in `./examples/test.gcnf`:
+ 
+```
+p gcnf 2 5 4
+{0} 1 0
+{1} -1 0
+{2} 2 0
+{3} -2 0
+{4} 1 2 0
+```
+
+Here, there are two group MUSes: {1} and {2,3}, where the number are the 1-based indices of the soft clauses. 
+
 ## Third Party Tools
 We distribute linux-compiled binaries of three (publicly available) tools: [ganak](https://github.com/meelgroup/ganak), [rime](https://github.com/jar-ben/rime), and [uwrmaxsat](https://github.com/marekpiotrow/UWrMaxSat). The binaries (and the licenses) can be found in the directory `./tools`. In case you want to optimize the computation (or notice some problems), we suggest you to download the tools and rebuild the binaries on your own. 
 
