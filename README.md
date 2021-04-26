@@ -59,3 +59,6 @@ A paper that introduces our counting approach was accepted to CAV 2021 (to appea
   year      = {2021 (to appear)}
 }
 ```
+
+## Contact
+In case of any questions of problems, please contact me at xbendik=at=gmail.com
