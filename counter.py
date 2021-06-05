@@ -21,6 +21,14 @@ def tseitinCube(cube, current):
     res.append([current] + [-l for l in cube])
     return res, current
 
+def tseitinClause(clause, current):
+    current += 1
+    res = []
+    for l in clause:
+        res.append([current,-l])
+    res.append([-current] + [l for l in clause])
+    return res, current
+
 def receiveSignal(tempFiles, signalNumber, frame):
     print(tempFiles, signalNumber, frame)
     print('Received signal:', signalNumber)
@@ -211,23 +219,30 @@ class Counter:
         self.tmpFiles = [self.WrapperFile, self.WrapperIndFile, self.RemainderFile, self.RemainderIndFile, self.rimeFile]
 
         self.activators = [i + 1 for i in range(self.dimension)]
-        self.evidenceActivators = []
-        for i in range(1, self.dimension + 1):
-            self.evidenceActivators.append([i*self.dimension + j  for j in range(1, self.dimension + 1)])
-        self.FvarsOffset = (self.dimension + 1) * self.dimension
+
+        self.maxMUSCard = 40
+        self.selectors = [] #self.selectors[i] = j means that the variable set i is assigned to the clause j (while building the evidence)
+        for i in range(self.dimension):
+            self.selectors.append([self.dimension + i*self.maxMUSCard + j for j in range(1, self.maxMUSCard + 1)])
+
+        self.FvarsOffset = self.selectors[-1][-1] 
         self.evidenceVarsOffsets = []
         CBmaxVar = maxVar(self.C + self.B)
-        for i in range(1, self.dimension + 1):
+        for i in range(1, self.maxMUSCard + 1):
             self.evidenceVarsOffsets.append(self.FvarsOffset + i*CBmaxVar)
-       
+
+        self.act = self.evidenceVarsOffsets[-1] + CBmaxVar #curently maximal used variable 
+
         if self.debug: 
             print("activators:", self.activators)
             print()
-            print("evidence activators:", self.evidenceActivators)
+            print("selectors:", self.selectors)
             print()
             print("F's variables offset:", self.FvarsOffset)
             print()
             print("evidence variables' offsets:", self.evidenceVarsOffsets)
+            print()
+            print("self.act", self.act)
 
         #selection variables for individual wrappers. True means selected. Multiple wrappers can be selected and composed
         self.w4 = True
@@ -403,7 +418,43 @@ class Counter:
             clauses.append(offsetClause(cl, self.FvarsOffset))
         return clauses
 
+    #only self.maxMUSCard copies of Vars(F) used
     def W1(self):   
+        clauses = []
+
+        #encode the evidence (removing one clause from the activated set of clauses yields a satisfiable set of clauses)
+        for j in range(self.maxMUSCard):
+            cls, self.act = tseitinClause([self.selectors[k][j]  for k in range(self.dimension)], self.act) #tseitin for "at last one clause of F is mapped to j-th variable set
+            clauses += cls
+            t = self.act
+            for i in range(self.dimension):
+                clauses.append([-t, -self.activators[i], self.selectors[i][j]] + offsetClause(self.C[i], self.evidenceVarsOffsets[j]))
+            for cl in self.B:
+                clauses.append(offsetClause(cl, self.evidenceVarsOffsets[j]))
+
+        assert self.act == maxVar(clauses)
+
+        enc = 1
+        #encode that every clause is selected (assigned to a variable set) at most once
+        for i in range(self.dimension):
+            crd = CardEnc.atmost(lits=self.selectors[i], bound=1, encoding=enc, top_id=self.act)
+            self.act = maxVar(crd) 
+            clauses += crd
+
+        #encode that every variable set is assigned to at most one clause
+        for j in range(self.maxMUSCard):
+            crd = CardEnc.atmost(lits=[self.selectors[k][j] for k in range(self.dimension)], bound=1, encoding=enc, top_id=self.act)
+            self.act = maxVar(crd) 
+            clauses += crd
+
+        #if f_i is selected then f_i is assigned to a variable set
+        for i in range(self.dimension):
+            clauses.append([-self.activators[i]] + self.selectors[i])
+
+        return clauses 
+
+    #|F|*Vars(F) variables as used in the CAV'21 paper
+    def W1CAV21(self):   
         clauses = []
         for i in range(self.dimension):
             for j in range(self.dimension):
@@ -598,8 +649,8 @@ if __name__ == "__main__":
     parser.add_argument("--w6", action='store_false', help = "Disable the wrapper W6, i.e., component partitioning.")
     parser.add_argument("--w7", action='store_true', help = "Enable the wrapper W7, i.e., MCS enumeration for minimal hitting set duality.")
     parser.add_argument("--w8", action='store_false', help = "Disable the wrapper W8, i.e., literal negation cover.")
-    parser.add_argument("--w9", action='store_false', help = "Disable the wrapper W9, i.e., non-extendable evidence models.")
-    parser.add_argument("--w10", action='store_false', help = "Disable the wrapper W10, i.e., enforced evidence models.")
+    parser.add_argument("--w9", action='store_true', help = "Enable the wrapper W9, i.e., non-extendable evidence models.")
+    parser.add_argument("--w10", action='store_true', help = "Enable the wrapper W10, i.e., enforced evidence models.")
     parser.add_argument("--w11", action='store_true', help = "Enable the wrapper W11, i.e., prevent simple implications between activated clauses.")
     parser.add_argument("--rime-timeout", type=int, default=10, help = "Set timeout for RIME (MCS enumeration).")
     parser.add_argument("--rime-mcs-limit", type=int, default=100000, help = "Limit the number of MCSes identified by RIME.")
