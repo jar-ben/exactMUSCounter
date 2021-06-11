@@ -133,7 +133,7 @@ class Counter:
        
         self.components = component 
 
-    # RIME currently handles only .cnf instances. For .gcnf (.wcnf) instances, we employ MCSLS
+
     def rimeMCSes(self):
         if self.filename[-5:] == ".gcnf":
             return self.rimeWMCSes()
@@ -169,8 +169,8 @@ class Counter:
             print("-- WARNING: The computation of the intersection of MUSes and the autarky is currently not supported for .gcnf instances.")
             print("--- I am keeping the original input (no trim based on the intersection nor autarky).")
             return
-        autarky = self.getAutarky() if self.autarky else [i for i in range(len(self.C))]
-        imu = self.getImu() if self.imu else []
+        autarky = getAutarky(filename = self.filename) if self.autarky else [i for i in range(len(self.C))]
+        imu = getImu(filename = self.filename) if self.imu else []
 
         C = [self.C[c] for c in sorted(set(autarky) - set(imu))]
         B = [self.C[c] for c in imu]
@@ -178,27 +178,6 @@ class Counter:
         if self.imu: print("imu size:", len(imu))
         self.C, self.B = C, B
 
-    def getAutarky(self):
-        cmd = "timeout 3600 python3 autarky.py {}".format(self.filename)
-        print(cmd)
-        out = run(cmd, 3600)
-        if "autarky vars" in out:
-            for line in out.splitlines():
-                line = line.rstrip()
-                if line[:2] == "v ":
-                    return [int(c) - 1 for c in line.split()[1:]]
-        else: return [i for i in range(len(self.C))]
-
-    def getImu(self):
-        cmd = "timeout 3600 python3 gimu.py {}".format(self.filename)
-        print(cmd)
-        out = run(cmd, 3600)
-        if "imu size" in out and not "imu size: 0" in out:
-            for line in out.splitlines():
-                line = line.rstrip()
-                if line[:2] == "v ":
-                    return [int(c) - 1 for c in line.split()[1:]]
-        else: return []
 
     def wrapper(self):
         clauses, cards = self.W1()

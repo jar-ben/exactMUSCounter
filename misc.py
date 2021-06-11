@@ -195,34 +195,14 @@ def maxSat(Hard, Soft):
     print("max sat value", satisfied)
     return satisfied if satisfied > 0 else -1
 
-def getAutarky2(C, excluded):
-    mapa = []
-    D = []
-    for i in range(len(C)):
-        if i not in excluded:
-            mapa.append(i)
-            D.append(C[i])
-
-    filename = "./tmp/autarky{}.cnf".format(randint(1,10000000))
-    exportCNF(D, filename)
+def getAutarky(C = [], filename = None):
+    keep = filename != None
+    if filename == None:
+        filename = "./tmp/autarky{}.cnf".format(randint(1,10000000))
+        exportCNF(C, filename)
     cmd = "timeout 3600 python3 autarky.py {}".format(filename)
-    #print(cmd)
     out = run(cmd, 3600)
-    os.remove(filename)
-    if "autarky vars" in out:
-        for line in out.splitlines():
-            line = line.rstrip()
-            if line[:2] == "v ":
-                return [mapa[int(c) - 1] for c in line.split()[1:]]
-    else: return [mapa[i] for i in range(len(D))]
-
-def getAutarky(C):
-    filename = "./tmp/autarky{}.cnf".format(randint(1,10000000))
-    exportCNF(C, filename)
-    cmd = "timeout 3600 python3 autarky.py {}".format(filename)
-    #print(cmd)
-    out = run(cmd, 3600)
-    os.remove(filename)
+    if not keep: os.remove(filename)
     if "autarky vars" in out:
         for line in out.splitlines():
             line = line.rstrip()
@@ -230,7 +210,21 @@ def getAutarky(C):
                 return [int(c) - 1 for c in line.split()[1:]]
     else: return [i for i in range(len(C))]
 
-def rime(C, hard = [], excluded = [], limit = 0, auxiliaryHard = []):
+def getImu(C = [], filename = []):
+    keep = filename != None
+    if filename == None:
+        filename = "./tmp/imu{}.cnf".format(randint(1,10000000))
+        exportCNF(C, filename)
+    cmd = "timeout 3600 python3 gimu.py {}".format(filename)
+    out = run(cmd, 3600)
+    if "imu size" in out and not "imu size: 0" in out:
+        for line in out.splitlines():
+            line = line.rstrip()
+            if line[:2] == "v ":
+                return [int(c) - 1 for c in line.split()[1:]]
+    else: return []
+
+def rime(C, hard = [], excluded = [], limit = 0, auxiliaryHard = [], timelimit = 3600):
     if checkSAT(C, excluded):
         return [[]]
 
@@ -253,7 +247,7 @@ def rime(C, hard = [], excluded = [], limit = 0, auxiliaryHard = []):
 
     filename = "./tmp/rime{}.wcnf".format(randint(1,10000000))
     open(filename, "w").write(renderWcnf(H,S))
-    cmd = "./rime -v 1 {}".format(filename)
+    cmd = "./tools/rime -v 1 {}".format(filename)
     out = run(cmd, 3600)
     os.remove(filename)
     assert "Number of MSSes" in out
