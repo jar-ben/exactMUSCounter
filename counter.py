@@ -69,7 +69,24 @@ def maxVar(C):
 def randomBool():
     return bool(random.getrandbits(1))
 
-def exportCNF(clauses, filename, ind = [], varFile = None):
+def exportOPB(clauses, filename, ind = [], cards = None):
+    if filename[-4:] == ".cnf":
+        filename = filename[:-4] + ".opb"
+    with open(filename, "w") as f:
+        maxVar = max([max(abs(l) for l in cl) for cl in clauses])
+        f.write("* #variables= {} #constraints= {}\n".format(maxVar, len(clauses) + len(cards)))
+        if len(ind) > 0:
+            f.write("* ind " + " ".join([str(i) for i in ind]) + " 0\n")
+
+        for c in cards:
+            f.write(c + ";\n")
+
+        for cl in clauses:
+            f.write(" ".join([("1 x" + str(l)) if l > 0 else ("1 ~x" + str(-l)) for l in cl]) + " >= 1 ;\n")
+
+    print("exported {}, clauses: {}, maxVar: {}, cards: {}".format(filename, len(clauses), maxVar, len(cards)))
+
+def exportCNF(clauses, filename, ind = [], varFile = None, cards = None):
     with open(filename, "w") as f:
         if len(ind) > 0:
             f.write("c ind " + " ".join([str(i) for i in ind]) + " 0\n")
@@ -220,7 +237,7 @@ class Counter:
 
         self.activators = [i + 1 for i in range(self.dimension)]
 
-        self.maxMUSCard = 40
+        self.maxMUSCard = 10
         self.selectors = [] #self.selectors[i] = j means that the variable set i is assigned to the clause j (while building the evidence)
         for i in range(self.dimension):
             self.selectors.append([self.dimension + i*self.maxMUSCard + j for j in range(1, self.maxMUSCard + 1)])
@@ -361,7 +378,7 @@ class Counter:
         else: return []
 
     def wrapper(self):
-        clauses = self.W1()
+        clauses, cards = self.W1()
         if self.w4:
             self.W4() #internally sets up self.min_size
         if self.w6:
@@ -397,13 +414,13 @@ class Counter:
             print("-- Using an upper-bound on MUS cardinality:", self.max_size)
 
         inds = [i for i in range(1, self.dimension + 1)]
-        return clauses, inds
+        return clauses, inds, cards
 
     def remainder(self):
-        clauses, inds = self.wrapper()
+        clauses, inds, cards = self.wrapper()
 #        act = max(self.maxVar, maxVar(clauses))
         clauses += self.allSAT()
-        return clauses, inds
+        return clauses, inds, cards
 
     def allSAT(self):
         clauses = []
@@ -421,6 +438,7 @@ class Counter:
     #only self.maxMUSCard copies of Vars(F) used
     def W1(self):   
         clauses = []
+        cards = []
 
         #encode the evidence (removing one clause from the activated set of clauses yields a satisfiable set of clauses)
         for j in range(self.maxMUSCard):
@@ -434,24 +452,40 @@ class Counter:
 
         assert self.act == maxVar(clauses)
 
-        enc = 1
-        #encode that every clause is selected (assigned to a variable set) at most once
-        for i in range(self.dimension):
-            crd = CardEnc.atmost(lits=self.selectors[i], bound=1, encoding=enc, top_id=self.act)
-            self.act = maxVar(crd) 
-            clauses += crd
+        self.pb = True
+        if self.pb:
+            for i in range(self.dimension):
+                #cards.append(" ".join(["1 x" + str(s) for s in self.selectors[i]]) + " <= 1")
+                cards.append(" ".join(["1 ~x" + str(s) for s in self.selectors[i]]) + " >= " + str(self.maxMUSCard - 1))
 
-        #encode that every variable set is assigned to at most one clause
-        for j in range(self.maxMUSCard):
-            crd = CardEnc.atmost(lits=[self.selectors[k][j] for k in range(self.dimension)], bound=1, encoding=enc, top_id=self.act)
-            self.act = maxVar(crd) 
-            clauses += crd
+            #encode that every variable set is assigned to at most one clause
+            for j in range(self.maxMUSCard):
+                #cards.append(" ".join(["1 x" + str(self.selectors[k][j]) for k in range(self.dimension)]) + " <= 1")
+                cards.append(" ".join(["1 ~x" + str(self.selectors[k][j]) for k in range(self.dimension)]) + " >= " + str(self.dimension - 1))
 
-        #if f_i is selected then f_i is assigned to a variable set
-        for i in range(self.dimension):
-            clauses.append([-self.activators[i]] + self.selectors[i])
+            #if f_i is selected then f_i is assigned to a variable set
+            for i in range(self.dimension):
+                clauses.append([-self.activators[i]] + self.selectors[i])
 
-        return clauses 
+        else:
+            enc = 1
+            #encode that every clause is selected (assigned to a variable set) at most once
+            for i in range(self.dimension):
+                crd = CardEnc.atmost(lits=self.selectors[i], bound=1, encoding=enc, top_id=self.act)
+                self.act = maxVar(crd) 
+                clauses += crd
+
+            #encode that every variable set is assigned to at most one clause
+            for j in range(self.maxMUSCard):
+                crd = CardEnc.atmost(lits=[self.selectors[k][j] for k in range(self.dimension)], bound=1, encoding=enc, top_id=self.act)
+                self.act = maxVar(crd) 
+                clauses += crd
+
+            #if f_i is selected then f_i is assigned to a variable set
+            for i in range(self.dimension):
+                clauses.append([-self.activators[i]] + self.selectors[i])
+
+        return clauses, cards
 
     #|F|*Vars(F) variables as used in the CAV'21 paper
     def W1CAV21(self):   
@@ -595,17 +629,19 @@ class Counter:
 
     def runExact(self):
         self.ganak = True #currently, we support only ganak (we do not distribute projMC)
-        WrapperClauses, WrapperInd = self.wrapper()
+        WrapperClauses, WrapperInd, WrapperCards = self.wrapper()
         if len(WrapperClauses) > 5200000:
             print("Too large wrapper,", str(len(WrapperClauses)), "terminating")
             sys.exit()
-        exportCNF(WrapperClauses, self.WrapperFile, WrapperInd, self.WrapperIndFile)
-        
-        RemainderClauses, RemainderInd = WrapperClauses + self.allSAT(), WrapperInd
+        exportCNF(WrapperClauses, self.WrapperFile, WrapperInd, self.WrapperIndFile, cards = WrapperCards)
+        exportOPB(WrapperClauses, self.WrapperFile, WrapperInd, cards = WrapperCards)
+
+        RemainderClauses, RemainderInd, RemainderCards = WrapperClauses + self.allSAT(), WrapperInd, WrapperCards
         if len(RemainderClauses) > 5200000:
             print("Too large wrapper,", str(len(RemainderClauses)), "terminating")
             sys.exit()
-        exportCNF(RemainderClauses, self.RemainderFile, RemainderInd, self.RemainderIndFile)
+        exportCNF(RemainderClauses, self.RemainderFile, RemainderInd, self.RemainderIndFile, RemainderCards)
+        exportOPB(RemainderClauses, self.RemainderFile, RemainderInd, cards = RemainderCards)
 
         timeout = 3600
         if self.ganak:
@@ -617,6 +653,14 @@ class Counter:
             cmd = "timeout {} ./tools/ganak -noIBCP {}".format(timeout, self.WrapperFile)
             cmd = "timeout {} ./tools/ganak -cs 16000 {}".format(timeout, self.WrapperFile)
             wrapperSize = self.parseGanak(run(cmd, timeout))
+            print("Wrapper size:", wrapperSize)
+        elif self.pb:
+            cmd = "timeout {} ./tools/approxmc-pb {}".format(timeout, self.RemainderFile)
+            remainderSize = self.parseApproxMCPB(run(cmd, timeout))
+            print("Remainder size:", remainderSize)
+            
+            cmd = "timeout {} ./tools/approxmc-pb {}".format(timeout, self.WrapperFile)
+            wrapperSize = self.parseApproxMCPB(run(cmd, timeout))
             print("Wrapper size:", wrapperSize)
         else:
             cmd = "timeout {} ./tools/projMC_linux {} -fpv=\"{}\"".format(timeout, self.WrapperFile, self.WrapperIndFile)
