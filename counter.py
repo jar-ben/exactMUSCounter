@@ -70,8 +70,6 @@ def randomBool():
     return bool(random.getrandbits(1))
 
 def exportOPB(clauses, filename, ind = [], cards = None):
-    if filename[-4:] == ".cnf":
-        filename = filename[:-4] + ".opb"
     with open(filename, "w") as f:
         maxVar = max([max(abs(l) for l in cl) for cl in clauses])
         f.write("* #variables= {} #constraints= {}\n".format(maxVar, len(clauses) + len(cards)))
@@ -193,11 +191,12 @@ def maxSat(Hard, Soft):
     return satisfied if satisfied > 0 else -1
 
 class Counter:
-    def __init__(self, filename, useAutarky, useImu):
+    def __init__(self, filename, useAutarky, useImu, card):
         self.filename = filename
         self.C, self.B = parse(filename)
         self.imu = useImu
         self.autarky = useAutarky
+        self.card = card
         self.rid = randint(1,10000000)
         self.debug = False
 
@@ -271,6 +270,7 @@ class Counter:
         self.w10 = True
         self.w11 = False
         self.rimeTimeout = 10
+        self.task = "exactCount"
 
     def sccDFS(self, visitedC, visitedB, Ci, Bi, component):
         assert min(Ci, Bi) < 0 and max(Ci, Bi) >= 0
@@ -435,8 +435,13 @@ class Counter:
             clauses.append(offsetClause(cl, self.FvarsOffset))
         return clauses
 
+    def W1(self):
+        if self.card:
+            return self.W1Card()
+        return self.W1OneHot(), []
+
     #only self.maxMUSCard copies of Vars(F) used
-    def W1(self):   
+    def W1Card(self):   
         clauses = []
         cards = []
 
@@ -452,8 +457,8 @@ class Counter:
 
         assert self.act == maxVar(clauses)
 
-        self.pb = True
         if self.pb:
+            print("building pb clauses")
             for i in range(self.dimension):
                 #cards.append(" ".join(["1 x" + str(s) for s in self.selectors[i]]) + " <= 1")
                 cards.append(" ".join(["1 ~x" + str(s) for s in self.selectors[i]]) + " >= " + str(self.maxMUSCard - 1))
@@ -488,7 +493,7 @@ class Counter:
         return clauses, cards
 
     #|F|*Vars(F) variables as used in the CAV'21 paper
-    def W1CAV21(self):   
+    def W1OneHot(self):   
         clauses = []
         for i in range(self.dimension):
             for j in range(self.dimension):
@@ -556,6 +561,7 @@ class Counter:
     #for each 1<=i<=n we encode that the valuation I_i 
     #does not satisfy the clase f_i
     def W9(self):
+        if self.card: return [] #currently not supported when using the pb encoding
         clauses = []
         #max model
         for i in range(len(self.C)):
@@ -572,6 +578,7 @@ class Counter:
     #is enforced to falsify the clase f_i, 
     #i.e., if we flip an assignemnt to any literal of f_i in I_i, then I_i no longer models E_i
     def W10(self, act):
+        if self.card: return [] #currently not supported when using the pb encoding
         clauses = []
         for i in range(len(self.C)):
             for l in self.C[i]:
@@ -626,35 +633,65 @@ class Counter:
         for line in out.splitlines():
             if line[:2] == "s ":
                 return int(line.rstrip().split()[1])
+        return -1
 
-    def runExact(self):
-        self.ganak = True #currently, we support only ganak (we do not distribute projMC)
+    def parseApproxMCPB(self, out):
+        for line in out.splitlines():
+            if line[:4] == "s mc":
+                return int(line.rstrip().split()[-1])
+        return -1
+
+    def run(self):
         WrapperClauses, WrapperInd, WrapperCards = self.wrapper()
         if len(WrapperClauses) > 5200000:
             print("Too large wrapper,", str(len(WrapperClauses)), "terminating")
             sys.exit()
-        exportCNF(WrapperClauses, self.WrapperFile, WrapperInd, self.WrapperIndFile, cards = WrapperCards)
-        exportOPB(WrapperClauses, self.WrapperFile, WrapperInd, cards = WrapperCards)
 
         RemainderClauses, RemainderInd, RemainderCards = WrapperClauses + self.allSAT(), WrapperInd, WrapperCards
         if len(RemainderClauses) > 5200000:
-            print("Too large wrapper,", str(len(RemainderClauses)), "terminating")
+            print("Too large remainder,", str(len(RemainderClauses)), "terminating")
             sys.exit()
-        exportCNF(RemainderClauses, self.RemainderFile, RemainderInd, self.RemainderIndFile, RemainderCards)
-        exportOPB(RemainderClauses, self.RemainderFile, RemainderInd, cards = RemainderCards)
 
-        timeout = 3600
-        if self.ganak:
-            cmd = "timeout {} ./tools/ganak -noIBCP {}".format(timeout, self.RemainderFile)
-            cmd = "timeout {} ./tools/ganak -cs 16000 {}".format(timeout, self.RemainderFile)
-            remainderSize = self.parseGanak(run(cmd, timeout))
-            print("Remainder size:", remainderSize)
-            
-            cmd = "timeout {} ./tools/ganak -noIBCP {}".format(timeout, self.WrapperFile)
-            cmd = "timeout {} ./tools/ganak -cs 16000 {}".format(timeout, self.WrapperFile)
-            wrapperSize = self.parseGanak(run(cmd, timeout))
-            print("Wrapper size:", wrapperSize)
-        elif self.pb:
+        if self.pb:
+            if self.RemainderFile[-4:] == ".cnf":
+                self.RemainderFile = self.RemainderFile[:-4] + ".opb"
+            if self.WrapperFile[-4:] == ".cnf":
+                self.WrapperFile = self.WrapperFile[:-4] + ".opb"
+            exportOPB(RemainderClauses, self.RemainderFile, RemainderInd, cards = RemainderCards)
+            exportOPB(WrapperClauses, self.WrapperFile, WrapperInd, cards = WrapperCards)
+        else:
+            exportCNF(RemainderClauses, self.RemainderFile, RemainderInd, self.RemainderIndFile, RemainderCards)
+            exportCNF(WrapperClauses, self.WrapperFile, WrapperInd, self.WrapperIndFile, cards = WrapperCards)
+
+        if self.pb:
+            self.task = "approxCount"
+
+        if self.task == "exactCount":
+            self.ganak = True #currently, we support only ganak (we do not distribute projMC)
+            if self.ganak:
+                cmd = "timeout {} ./tools/ganak -noIBCP {}".format(timeout, self.RemainderFile)
+                cmd = "timeout {} ./tools/ganak -cs 16000 {}".format(timeout, self.RemainderFile)
+                remainderSize = self.parseGanak(run(cmd, timeout))
+                print("Remainder size:", remainderSize)
+                
+                cmd = "timeout {} ./tools/ganak -noIBCP {}".format(timeout, self.WrapperFile)
+                cmd = "timeout {} ./tools/ganak -cs 16000 {}".format(timeout, self.WrapperFile)
+                wrapperSize = self.parseGanak(run(cmd, timeout))
+                print("Wrapper size:", wrapperSize)
+            else:
+                cmd = "timeout {} ./tools/projMC_linux {} -fpv=\"{}\"".format(timeout, self.WrapperFile, self.WrapperIndFile)
+                wrapperSize = self.parseProjMC(run(cmd, timeout))
+                print("Wrapper size:", wrapperSize)
+
+                cmd = "timeout {} ./tools/projMC_linux {} -fpv=\"{}\"".format(timeout, self.RemainderFile, self.RemainderIndFile)
+                remainderSize = self.parseProjMC(run(cmd, timeout))
+                print("Remainder size:", remainderSize)
+            count = -1
+            if (wrapperSize >= 0) and (remainderSize >= 0): count = wrapperSize - remainderSize
+            print("MUS count:", count)
+
+        elif self.task == "approxCount":
+            timeout = 3600
             cmd = "timeout {} ./tools/approxmc-pb {}".format(timeout, self.RemainderFile)
             remainderSize = self.parseApproxMCPB(run(cmd, timeout))
             print("Remainder size:", remainderSize)
@@ -662,23 +699,15 @@ class Counter:
             cmd = "timeout {} ./tools/approxmc-pb {}".format(timeout, self.WrapperFile)
             wrapperSize = self.parseApproxMCPB(run(cmd, timeout))
             print("Wrapper size:", wrapperSize)
-        else:
-            cmd = "timeout {} ./tools/projMC_linux {} -fpv=\"{}\"".format(timeout, self.WrapperFile, self.WrapperIndFile)
-            wrapperSize = self.parseProjMC(run(cmd, timeout))
-            print("Wrapper size:", wrapperSize)
-
-            cmd = "timeout {} ./tools/projMC_linux {} -fpv=\"{}\"".format(timeout, self.RemainderFile, self.RemainderIndFile)
-            remainderSize = self.parseProjMC(run(cmd, timeout))
-            print("Remainder size:", remainderSize)
+            count = -1
+            if (wrapperSize >= 0) and (remainderSize >= 0): count = wrapperSize - remainderSize
+            print("MUS count:", count)
          
-        count = -1
-        if (wrapperSize >= 0) and (remainderSize >= 0): count = wrapperSize - remainderSize
-        print("MUS count:", count)
         if not self.keep_files:
-            os.remove(self.RemainderFile)
-            os.remove(self.RemainderIndFile)
-            os.remove(self.WrapperFile)
-            os.remove(self.WrapperIndFile)
+            if os.path.exists(self.RemainderFile): os.remove(self.RemainderFile)
+            if os.path.exists(self.RemainderIndFile): os.remove(self.RemainderIndFile)
+            if os.path.exists(self.WrapperFile): os.remove(self.WrapperFile)
+            if os.path.exists(self.WrapperIndFile): os.remove(self.WrapperIndFile)
 
 import sys
 if __name__ == "__main__":
@@ -701,10 +730,14 @@ if __name__ == "__main__":
     parser.add_argument("--min-size", type=int, default=-1, help = "Specify the minimum size (cardinality) of the counted MUSes.")
     parser.add_argument("--max-size", type=int, default=-1, help = "Specify the maximum size (cardinality) of the counted MUSes.")
     parser.add_argument("--keep-files", action='store_true', help = "Do not delete auxiliary files at the end of the computation (for debugging purposes).")
+    parser.add_argument("--card", action='store_true', help = "Use the maximum MUS cardinality based encoding.")
+    parser.add_argument("--pb", action='store_true', help = "Use the pseudo-boolean encoding.")
+    parser.add_argument("--task", choices = ["exactCount", "approxCount"], default = "exactCount", help = "Choose a computational task: ec = exact MUS count, ac = approximate MUS count.")
+
     args = parser.parse_args()
 
 
-    counter = Counter(args.input_file, args.w3, args.w2)
+    counter = Counter(args.input_file, args.w3, args.w2, args.card)
 
     if args.keep_files:
         print("-- The flag --keep-files was set. Auxiliary files created during the computation will not be deleted. The created files might include:")
@@ -722,11 +755,12 @@ if __name__ == "__main__":
     counter.w9 = args.w9
     counter.w10 = args.w10
     counter.w11 = args.w11
+    counter.pb = args.pb
 
     counter.max_size = args.max_size
     counter.min_size = args.min_size
     counter.rimeTimeout = args.rime_timeout
     counter.rimeMCSLimit = args.rime_mcs_limit
     counter.keep_files = args.keep_files
-    counter.runExact()
+    counter.run()
     print("Total execution (clock) time in seconds:", time.time() - startTime) 
