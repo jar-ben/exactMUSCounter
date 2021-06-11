@@ -663,10 +663,15 @@ class Counter:
             exportCNF(RemainderClauses, self.RemainderFile, RemainderInd, self.RemainderIndFile, RemainderCards)
             exportCNF(WrapperClauses, self.WrapperFile, WrapperInd, self.WrapperIndFile, cards = WrapperCards)
 
+
+        if self.task == "encode":
+            return
+
         if self.pb:
             self.task = "approxCount"
 
         if self.task == "exactCount":
+            timeout = 3600
             self.ganak = True #currently, we support only ganak (we do not distribute projMC)
             if self.ganak:
                 cmd = "timeout {} ./tools/ganak -noIBCP {}".format(timeout, self.RemainderFile)
@@ -732,7 +737,7 @@ if __name__ == "__main__":
     parser.add_argument("--keep-files", action='store_true', help = "Do not delete auxiliary files at the end of the computation (for debugging purposes).")
     parser.add_argument("--card", action='store_true', help = "Use the maximum MUS cardinality based encoding.")
     parser.add_argument("--pb", action='store_true', help = "Use the pseudo-boolean encoding.")
-    parser.add_argument("--task", choices = ["exactCount", "approxCount"], default = "exactCount", help = "Choose a computational task: ec = exact MUS count, ac = approximate MUS count.")
+    parser.add_argument("--task", choices = ["exactCount", "approxCount", "encode"], default = "exactCount", help = "Choose a computational task: ec = exact MUS count, ac = approximate MUS count, encode = just output wrapper and remainder encoding.")
 
     args = parser.parse_args()
 
@@ -756,6 +761,7 @@ if __name__ == "__main__":
     counter.w10 = args.w10
     counter.w11 = args.w11
     counter.pb = args.pb
+    counter.task = args.task
 
     counter.max_size = args.max_size
     counter.min_size = args.min_size
